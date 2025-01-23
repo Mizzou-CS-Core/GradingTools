@@ -6,6 +6,7 @@ import sys
 import re
 import requests
 import json
+import toml
 
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired
 from csv import DictReader
