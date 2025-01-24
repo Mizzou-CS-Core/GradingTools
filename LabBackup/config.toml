@@ -1,0 +1,27 @@
+[general]
+# the class code (needs to exist in /cluster/pixstor/class)
+class_code = ""
+# how long to attempt running a program before moving on
+# express in seconds (e.g 5 second timeout = 5)
+execution_timeout = 5
+# when to invalidate the roster cache. e.g if roster data is X days old, then regen it
+roster_invalidation_days = 14
+[paths]
+# the local storage dir will have the class code preappended to it
+local_storage_dir = "_local_labs"
+# the hellbender lab dir will hqve the class code appended to it
+# e.g if your lab dir is "/cluster/pixstor/class/" and your class code is "cs1050", it'll be
+# "/cluster/pixstor/class/cs1050"
+hellbender_lab_dir = "/cluster/pixstor/class/"
+# created in the local storage dir
+cache_dir = "cache"
+[canvas]
+# shouldn't need to change
+api_prefix =  "https://umsystem.instructure.com/api/v1/"
+# your Canvas user token. 
+# https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312
+api_token = ""
+# the course id can be found in the URL of the course:
+# https://umsystem.instructure.com/courses/306521/
+course_id = -1
+attendance_assignment_name_scheme = "Attendance - "
