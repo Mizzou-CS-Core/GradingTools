@@ -196,13 +196,17 @@ def gen_directories(context):
 def perform_backup(context):
     # locate the directories for submissions dependent on grader
     # also find the pawprints list for the grader
+    config_obj = context.config_obj
+    command_args_obj = context.command_args_obj
 
-    
-    grader_csv = hellbender_lab_directory + "/csv_rosters/" + grader + ".csv"
-    submissions_dir = hellbender_lab_directory + "/submissions/" + lab_name + "/" + grader
+
+
+    grader_csv = config_obj.hellbender_lab_dir + config_obj.class_code + "/csv_rosters/" + command_args_obj.grader_name + ".csv"
+    submissions_dir = config_obj.hellbender_lab_dir + config_obj.class_code  + "/submissions/" + command_args_obj.lab_name + "/" + command_args_obj.grader_name
+    local_name_dir = config_obj.class_code + config_obj.local_storage_dir
     attendance_assignment_id = None
     # if attendance is true, then we need to go find the assignment we need
-    if check_attendance == True:
+    if command_args_obj.check_attendance == True:
         with open(cache_path + "/assignment_list.json", 'r') as file:
             assignment_json = json.load(file)
             assignment_name = "Attendance: Lab " + lab_name[3:]
@@ -215,7 +219,7 @@ def perform_backup(context):
 
     with open(grader_csv, "r", newline="") as pawprints_list:
         next(pawprints_list)
-        fieldnames=["pawprint", "name"]
+        fieldnames = ['pawprint', 'canvas_id', 'name', 'date']
         csvreader = DictReader(pawprints_list, fieldnames=fieldnames)
         # for each name, we need to check if there's a valid submission
         for row in csvreader:
@@ -226,14 +230,13 @@ def perform_backup(context):
             name = row['name']
             canvas_id = None
              
-            if check_attendance == True:
+            if command_args_obj.check_attendance  == True:
                 canvas_id = map_pawprint_to_user_id(pawprint)
                 if not get_assignment_score(attendance_assignment_id, canvas_id, 1):
                     print(name + " was marked absent during the lab session and does not have a valid submission.")
                     continue
             pawprint_dir = submissions_dir + "/" + pawprint
-            local_name_dir = param_lab_path + "/" + name
-            if (clear_previous_labs == False):
+            if (command_args_obj.clear_previous_labs == False):
                 print(local_name_dir)
                 if os.path.exists(local_name_dir) and not os.path.exists(local_name_dir + "/output.log"):
                     print("Student " + pawprint + " already has a non-empty log, skipping")
@@ -325,7 +328,7 @@ def main(lab_name, grader):
 
     context = Context(config_obj, command_args_obj)
     lab_path = gen_directories(context)
-    perform_backup(main_dir = local_directory_name, lab_name=lab_name, param_lab_path = lab_path, grader=grader, compile_submission=compile_submission, execute_compilation=execute_compilation, use_proc_input=use_proc_input, check_attendance=check_attendance, make_submission = make_submission, clear_previous_labs=clear_previous_labs, proc_input = proc_input)
+    perform_backup(context)
 
 if __name__ == "__main__":
     if (len(sys.argv) < 3):
