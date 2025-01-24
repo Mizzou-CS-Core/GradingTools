@@ -11,14 +11,6 @@ import toml
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired
 from csv import DictReader
 
-canvas_api_prefix="https://umsystem.instructure.com/api/v1/"
-cache_path = None
-token = None
-course_id = None
-config_name = "config.toml"
-
-timeout = 5
-
 class Config: 
     def __init__(self, class_code, execution_timeout, local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
         self.class_code = class_code
@@ -30,8 +22,24 @@ class Config:
         self.api_token = api_token
         self.course_id = course_id
         self.attendance_assignment_name_scheme = attendance_assignment_name_scheme
+class CommandArgs:
+    def __init__(self, lab_name, grader_name, execute_compilation = True, compile_submission = True, make_submission = False,
+    use_proc_input = False, proc_input = None, check_attendance = False, clear_previous_labs = True):
+        self.lab_name = lab_name
+        self.grader_name = grader_name
+        self.execute_compilation = execute_compilation
+        self.compile_submission = compile_submission
+        self.make_submission = make_submission
+        self.use_proc_input = use_proc_input
+        self.proc_input = proc_input
+        self.check_attendance = check_attendance
+        self.clear_previous_labs = clear_previous_labs
 
 
+class Context:
+    def __init__(self, config_obj, command_args_obj):
+        self.config_obj = config_obj
+        self.command_args_obj = command_args_obj
 
 
 
@@ -89,7 +97,7 @@ def get_assignment_score(assignment_id, user_id, score_criteria):
                 return True
         return False
 # Get list of students in course from Canvas and export to JSON file
-def generate_course_roster(course_id, token, cache_path):
+def generate_course_roster():
     # to do - optimize this to search by group instead 
         # probably not a ton faster since need to search by group then can get list of students by group
     course_api = canvas_api_prefix + "courses/" + course_id + "/users?per_page=400&include[]=test_student&page=" 
@@ -109,35 +117,40 @@ def generate_assignment_list(course_id, token, cache_path):
         json.dump(response.json(), file, ensure_ascii=False, indent=4)
 
 # Preamble function responsible for generating and prepping any necessary directories and files
-def gen_directories(main_dir, cache_dir, lab_name, check_attendance, make_submission, clear_previous_labs, course_id=None, token=None):
+def gen_directories(context):
+    config_obj = context.config_obj
+    command_args_obj = context.command_args_obj
     # "preamble" code - generates the local directories
-    if not os.path.exists(main_dir):
+    complete_local_storage_dir = config_obj.class_code + config_obj.local_storage_dir
+    if not os.path.exists(complete_local_storage_dir):
         # create main lab dir
-        os.makedirs(main_dir)
+        os.makedirs(complete_local_storage_dir)
         print("Creating main lab dir")
     # if we're checking the attendance, then we need to prepare the cache
-    if check_attendance == True:
-        if course_id is None or token is None:
+    if command_args_obj.check_attendance == True:
+        if config_obj.course_id is None or config_obj.api_token is None:
             print("Missing course ID or token for usage in checking attendance")
             exit()
-        if os.path.exists(main_dir + "/" + cache_dir):
+        cache_path = complete_local_storage_dir + "/" + onfig_obj.cache_dir
+        if os.path.exists(cache_path):
             print("A cache folder for the program already exists. Clearing it and rebuilding")
-            shutil.rmtree(main_dir + "/" + cache_dir)
-        os.makedirs(main_dir + "/" + cache_dir)
+            shutil.rmtree(cache_path)
+        os.makedirs(cache_path)
         generate_course_roster(course_id, token, cache_path = main_dir + "/" + cache_dir)
         generate_assignment_list(course_id, token, cache_path = main_dir + "/" + cache_dir)
    
-    param_lab_dir = lab_name + "_backup"
-    param_lab_path = main_dir + "/" + param_lab_dir
+    param_lab_dir = command_args_obj.lab_name + "_backup"
+    param_lab_path = complete_local_storage_dir + "/" + param_lab_dir
     # double check if the backup folder for the lab exists and if it does, just clear it out and regenerate
     # could also ask if the user is cool with this
     print("Checking path ", param_lab_path)
-    if os.path.exists(param_lab_path) and clear_previous_labs:
-        print("A backup folder for", lab_name, " already exists. Clearing it and rebuilding")
+    if os.path.exists(param_lab_path) and command_args_obj.clear_previous_labs:
+        print("A backup folder for", command_args_obj.lab_name, " already exists. Clearing it and rebuilding")
         shutil.rmtree(param_lab_path)
-    print("Creating a backup folder for", lab_name)
-    if make_submission:
-        p = Popen(['cs1050start', lab_name], cwd=main_dir)
+    print("Creating a backup folder for", command_args_obj.lab_name)
+    os.makedirs(param_lab_path)
+    if command_args_obj.make_submission:
+        p = Popen(['cs1050start', command_args_obj.lab_name], cwd=config_obj.local_storage_dir )
         p.wait()
     return param_lab_path
 
@@ -228,10 +241,6 @@ def perform_backup(main_dir, lab_name, param_lab_path, grader, compile_submissio
                                 except TimeoutExpired:
                                     print("Student " + name + "'s lab took too long.")
                            
-
-
-'
-
 def main(lab_name, grader):
 
     # grab command params, and sanitize them
@@ -242,52 +251,39 @@ def main(lab_name, grader):
     args = None
     if len(sys.argv) > 3:
         args = sys.argv[3]
-    execute_compilation = True
-    compile_submission = True
-    make_submission = False
-    use_proc_input = False
-    check_attendance = False
-    clear_previous_labs = True
+
+    # prepare initial command arguments 
+    command_args_obj = CommandArgs(lab_name, grader, execute_compilation = True, 
+    compile_submission = True, make_submission = False, use_proc_input = False,
+    check_attendance = False, clear_previous_labs = True) 
 
     with open('config.toml', 'r') as f:
         config = toml.load(f)
+    # prepare configuration options
+    config_obj = Config(config['general']['class_code'], config['general']['execution_timeout'],
+    config['paths']['local_storage_dir'], config['paths']['hellbender_lab_dir'], config['paths']['cache_dir'], 
+    config['canvas']['api_prefix'], config['canvas']['api_token'], config['canvas']['course_id'], config['canvas']['attendance_assignment_name_scheme'])
 
-    # related to check attendance
-
-    proc_input = None
 
     # -x avoids running the compiled output (useful for user input)
     if args is not None:
         if 'x' in args:
-            execute_compilation = False
+            command_args_obj.execute_compilation = False
         if 'X' in args:
-            compile_submission = False
+            command_args_obj.compile_submission = False
         if 'm' in args:
-            make_submission = True
+            command_args_obj.make_submission = True
         if "n" in args:
-            clear_previous_labs = False
+            command_args_obj.clear_previous_labs = False
         if 's' in args and len(sys.argv) > 3:
-            use_proc_input = True
-            proc_input = sys.argv[4]
+            command_args_obj.use_proc_input = True
+            command_args_obj.proc_input = sys.argv[4]
         if 'a' in args and len(sys.argv) > 3:
-            check_attendance = True
-            if use_proc_input == True:
-                global course_id
-                course_id = sys.argv[5]
-                global token
-                token = sys.argv[6]
-            else:
-                course_id = sys.argv[4]
-                token = sys.argv[5]
+            command_args_obj.check_attendance = True
             
-    cache_dir = config['paths']['cache_dir']
-    global cache_path 
-    global hellbender_lab_directory 
-    hellbender_lab_directory = config['paths']['hellbender_lab_dir']
-    local_directory_name = config['general']['class_code'] + config['paths']['local_storage_dir']
-    cache_path = local_directory_name + "/" + cache_dir
-    token = config['canvas']['api_token']
-    lab_path = gen_directories(main_dir = local_directory_name, cache_dir = cache_dir, lab_name = lab_name, check_attendance = check_attendance, make_submission=make_submission, course_id=course_id, token=token, clear_previous_labs=clear_previous_labs)
+
+    context = Context(config_obj, command_args_obj )
+    lab_path = gen_directories(context)
     perform_backup(main_dir = local_directory_name, lab_name=lab_name, param_lab_path = lab_path, grader=grader, compile_submission=compile_submission, execute_compilation=execute_compilation, use_proc_input=use_proc_input, check_attendance=check_attendance, make_submission = make_submission, clear_previous_labs=clear_previous_labs, proc_input = proc_input)
 
 if __name__ == "__main__":
