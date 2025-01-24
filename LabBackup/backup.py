@@ -7,14 +7,17 @@ import re
 import requests
 import json
 import toml
+import datetime
 
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired
-from csv import DictReader
+from csv import DictReader, DictWriter
+from pathlib import Path
 
 class Config: 
-    def __init__(self, class_code, execution_timeout, local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
+    def __init__(self, class_code, execution_timeout, roster_invalidation_days, local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
         self.class_code = class_code
         self.execution_timeout = execution_timeout
+        self. roster_invalidation_days = roster_invalidation_days
         self.local_storage_dir = local_storage_dir
         self.hellbender_lab_dir = hellbender_lab_dir
         self.cache_dir = cache_dir
@@ -96,18 +99,54 @@ def get_assignment_score(assignment_id, user_id, score_criteria):
             if (response.json()['entered_score'] >= score_criteria):
                 return True
         return False
-# Get list of students in course from Canvas and export to JSON file
-def generate_course_roster():
-    # to do - optimize this to search by group instead 
-        # probably not a ton faster since need to search by group then can get list of students by group
-    course_api = canvas_api_prefix + "courses/" + course_id + "/users?per_page=400&include[]=test_student&page=" 
-    # need to break it up into two pages since we hit the internal per page limit
-    page_1 = make_api_call(course_api + "1", token)
-    page_2 = make_api_call(course_api + "2", token)
-    page_json = page_1.json()
-    page_json += page_2.json()
-    with open(cache_path + "/full_course_roster.json", 'w', encoding='utf-8') as file:
-        json.dump(page_json, file, ensure_ascii=False, indent=4)
+# Generates a roster based on the grader's group on Canvas. 
+def generate_grader_roster(context):
+    config_obj = context.config_obj
+    command_args_obj = context.command_args_obj
+    csv_rosters_path = config_obj.hellbender_lab_dir + config_obj.class_code + "/csv_rosters"
+    fieldnames = ['pawprint', 'canvas_id', 'name', 'date']
+    # first we'll check if the roster already exists.
+    if Path(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv").stat().st_size != 0:
+        invalidation_date = datetime.datetime.now() - datetime.timedelta(days=config_obj.roster_invalidation_days)
+        # if it does, let's see how old it is
+        # every student has a date appended to it which should be the same so we'll just check the first one
+        with open(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv", 'r', newline='') as csvfile:
+            reader = DictReader(csvfile, fieldnames=fieldnames)
+            next(reader) # consume header
+            sample_row = next(reader)
+            stored_date_str = sample_row['date']
+            stored_date_obj = datetime.datetime.strptime(stored_date_str, "%Y-%m-%d %H:%M:%S.%f")
+            invalidation_date = datetime.datetime.now() - datetime.timedelta(days=config_obj.roster_invalidation_days)
+            if (stored_date_obj > invalidation_date):
+                print("Roster data is recent enough to be used")
+                return
+    print("Preparing roster data")
+    # firstly, get a list of groups
+    group_api = config_obj.api_prefix + "courses/" + str(config_obj.course_id) + "/groups"
+    groups = make_api_call(group_api, config_obj.api_token)
+    # we need to find the group ID corresponding to the invoked grader
+    group_id = -1
+    for key in groups.json():
+        if key['name'] == command_args_obj.grader_name:
+            group_id = key['id'] 
+    # if it's still -1, we didn't find it. program will probably crash at some point but we're not going to exit because maybe a cached copy exists?
+    if group_id == -1: 
+        print("A group corresponding to " + command_args_obj.grader_name + " was not found in the Canvas course " + str(config_obj.course_id))
+    # now we can retrieve a list of the users in the grader's group
+    group_api = config_obj.api_prefix + "groups/" + str(group_id) + "/users"
+    users_in_group = make_api_call(group_api, config_obj.api_token)
+
+    if not os.path.exists(csv_rosters_path):
+        os.makedirs(csv_rosters_path)
+    with open(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv", 'w', newline='') as csvfile:
+        writer = DictWriter(csvfile, fieldnames = fieldnames)
+        writer.writeheader()
+        data = []
+        for key in users_in_group.json():
+            dict = {'pawprint': key['login_id'], 'canvas_id': key['id'], 'name': key['sortable_name'], 'date': datetime.datetime.now()}
+            data.append(dict)
+        writer.writerows(data)
+
 
 # Get list of assignments from Canvas and export to JSON file 
 def generate_assignment_list(course_id, token, cache_path):
@@ -136,8 +175,8 @@ def gen_directories(context):
             print("A cache folder for the program already exists. Clearing it and rebuilding")
             shutil.rmtree(cache_path)
         os.makedirs(cache_path)
-        generate_course_roster(course_id, token, cache_path = main_dir + "/" + cache_dir)
-        generate_assignment_list(course_id, token, cache_path = main_dir + "/" + cache_dir)
+    generate_grader_roster(context)
+        # generate_assignment_list(course_id, token, cache_path = main_dir + "/" + cache_dir)
    
     param_lab_dir = command_args_obj.lab_name + "_backup"
     param_lab_path = complete_local_storage_dir + "/" + param_lab_dir
@@ -154,9 +193,11 @@ def gen_directories(context):
         p.wait()
     return param_lab_path
 
-def perform_backup(main_dir, lab_name, param_lab_path, grader, compile_submission, execute_compilation, use_proc_input, check_attendance, make_submission, clear_previous_labs, proc_input = None):
+def perform_backup(context):
     # locate the directories for submissions dependent on grader
     # also find the pawprints list for the grader
+
+    
     grader_csv = hellbender_lab_directory + "/csv_rosters/" + grader + ".csv"
     submissions_dir = hellbender_lab_directory + "/submissions/" + lab_name + "/" + grader
     attendance_assignment_id = None
@@ -260,7 +301,7 @@ def main(lab_name, grader):
     with open('config.toml', 'r') as f:
         config = toml.load(f)
     # prepare configuration options
-    config_obj = Config(config['general']['class_code'], config['general']['execution_timeout'],
+    config_obj = Config(config['general']['class_code'], config['general']['execution_timeout'], config['general']['roster_invalidation_days'],
     config['paths']['local_storage_dir'], config['paths']['hellbender_lab_dir'], config['paths']['cache_dir'], 
     config['canvas']['api_prefix'], config['canvas']['api_token'], config['canvas']['course_id'], config['canvas']['attendance_assignment_name_scheme'])
 
@@ -282,7 +323,7 @@ def main(lab_name, grader):
             command_args_obj.check_attendance = True
             
 
-    context = Context(config_obj, command_args_obj )
+    context = Context(config_obj, command_args_obj)
     lab_path = gen_directories(context)
     perform_backup(main_dir = local_directory_name, lab_name=lab_name, param_lab_path = lab_path, grader=grader, compile_submission=compile_submission, execute_compilation=execute_compilation, use_proc_input=use_proc_input, check_attendance=check_attendance, make_submission = make_submission, clear_previous_labs=clear_previous_labs, proc_input = proc_input)
 
