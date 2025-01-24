@@ -84,13 +84,6 @@ def make_api_call(url, token, headers=None):
     except requests.exceptions.RequestException as e:
         print('Error:', e)
     return None
-# Look up Mizzou pawprint from cached roster and convert to Canvas Student ID
-def map_pawprint_to_user_id(pawprint):
-    with open(cache_path + "/full_course_roster.json") as file:
-        roster = json.load(file)
-        for key in roster:
-            if pawprint == key['login_id']:
-                return key['id']
 # Get individual submission of assignment from Canvas and determine if the score matches the criteria
 def get_assignment_score(assignment_id, user_id, score_criteria):
         canvas_assignments_submission_api = canvas_api_prefix + "courses/" + str(course_id) + "/assignments/" + str(assignment_id) + "/submissions/" + str(user_id)
@@ -165,16 +158,13 @@ def gen_directories(context):
         # create main lab dir
         os.makedirs(complete_local_storage_dir)
         print("Creating main lab dir")
-    # if we're checking the attendance, then we need to prepare the cache
-    if command_args_obj.check_attendance == True:
-        if config_obj.course_id is None or config_obj.api_token is None:
-            print("Missing course ID or token for usage in checking attendance")
-            exit()
-        cache_path = complete_local_storage_dir + "/" + onfig_obj.cache_dir
-        if os.path.exists(cache_path):
-            print("A cache folder for the program already exists. Clearing it and rebuilding")
-            shutil.rmtree(cache_path)
-        os.makedirs(cache_path)
+    cache_path = complete_local_storage_dir + "/" + config_obj.cache_dir
+    if os.path.exists(cache_path):
+        print("A cache folder for the program already exists. Clearing it and rebuilding")
+        shutil.rmtree(cache_path)
+    print("Generating a cache folder")
+    os.makedirs(cache_path)
+        
     generate_grader_roster(context)
         # generate_assignment_list(course_id, token, cache_path = main_dir + "/" + cache_dir)
    
@@ -198,9 +188,6 @@ def perform_backup(context):
     # also find the pawprints list for the grader
     config_obj = context.config_obj
     command_args_obj = context.command_args_obj
-
-
-
     grader_csv = config_obj.hellbender_lab_dir + config_obj.class_code + "/csv_rosters/" + command_args_obj.grader_name + ".csv"
     submissions_dir = config_obj.hellbender_lab_dir + config_obj.class_code  + "/submissions/" + command_args_obj.lab_name + "/" + command_args_obj.grader_name
     local_name_dir = config_obj.class_code + config_obj.local_storage_dir
