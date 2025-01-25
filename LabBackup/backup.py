@@ -9,6 +9,10 @@ import json
 import toml
 import datetime
 
+import tomlkit
+from tomlkit import document, table, comment, dumps, loads
+
+
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired
 from csv import DictReader, DictWriter
 from pathlib import Path
@@ -53,6 +57,8 @@ class Context:
         self.config_obj = config_obj
         self.command_args_obj = command_args_obj
 
+
+CONFIG_FILE = "config.toml"
 
 
 # help
@@ -149,7 +155,6 @@ def generate_grader_roster(context):
             data.append(dict)
         writer.writerows(data)
 
-
 # Get list of assignments from Canvas and export to JSON file 
 def generate_assignment_list(course_id, token, cache_path):
     canvas_assignments_api = canvas_api_prefix + "courses/" +course_id + "/assignments/"
@@ -162,23 +167,21 @@ def gen_directories(context):
     config_obj = context.config_obj
     command_args_obj = context.command_args_obj
     # "preamble" code - generates the local directories
-    complete_local_storage_dir = config_obj.class_code + config_obj.local_storage_dir
-    if not os.path.exists(complete_local_storage_dir):
+    if not os.path.exists(config_obj.get_complete_local_path()):
         # create main lab dir
-        os.makedirs(complete_local_storage_dir)
+        os.makedirs(config_obj.get_complete_local_path())
         print("Creating main lab dir")
-    cache_path = complete_local_storage_dir + "/" + config_obj.cache_dir
-    if os.path.exists(cache_path):
+    if os.path.exists(config_obj.get_complete_cache_path()):
         print("A cache folder for the program already exists. Clearing it and rebuilding")
-        shutil.rmtree(cache_path)
+        shutil.rmtree(config_obj.get_complete_cache_path())
     print("Generating a cache folder")
-    os.makedirs(cache_path)
+    os.makedirs(config_obj.get_complete_cache_path())
         
     generate_grader_roster(context)
         # generate_assignment_list(course_id, token, cache_path = main_dir + "/" + cache_dir)
    
     param_lab_dir = command_args_obj.lab_name + "_backup"
-    param_lab_path = complete_local_storage_dir + "/" + param_lab_dir
+    param_lab_path = config_obj.get_complete_local_path() + "/" + param_lab_dir
     # double check if the backup folder for the lab exists and if it does, just clear it out and regenerate
     # could also ask if the user is cool with this
     print("Checking path ", param_lab_path)
@@ -187,9 +190,9 @@ def gen_directories(context):
         shutil.rmtree(param_lab_path)
     print("Creating a backup folder for", command_args_obj.lab_name)
     os.makedirs(param_lab_path)
-    if command_args_obj.make_submission:
-        p = Popen(['cs1050start', command_args_obj.lab_name], cwd=config_obj.local_storage_dir )
-        p.wait()
+    # if command_args_obj.make_submission:
+    #     p = Popen(['cs1050start', command_args_obj.lab_name], cwd=config_obj.local_storage_dir )
+    #     p.wait()
     return param_lab_path
 
 def perform_backup(context, lab_path):
@@ -207,7 +210,6 @@ def perform_backup(context, lab_path):
         print("Copying test files into cache")
         lab_files_path = config_obj.get_complete_hellbender_path() + "/.testfiles/" + command_args_obj.lab_name + "_temp"
         for filename in os.listdir(lab_files_path):
-            print(config_obj.get_complete_cache_path())
             shutil.copy(lab_files_path + "/" + filename, config_obj.get_complete_cache_path())
 
 
@@ -260,10 +262,11 @@ def perform_backup(context, lab_path):
                 for filename in os.listdir(pawprint_dir):
                     shutil.copy(pawprint_dir + "/" + filename, local_name_dir)
                     # grab cache results
-                    for name in os.listdir(config_obj.get_complete_cache_path()):
-                          shutil.copy(config_obj.get_complete_cache_path() + "/" + name, local_name_dir)
+                    for x in os.listdir(config_obj.get_complete_cache_path()):
+                          shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
                     # if it's a c file, let's try to compile it and write the output to a file
                     if ".c" in filename and command_args_obj.compile_submission:
+                        print("Compiling student " + name + "'s lab")
                         if config_obj.use_makefile:
                             result = run(["make"], cwd = local_name_dir)
                         else:
@@ -272,14 +275,113 @@ def perform_backup(context, lab_path):
                         if command_args_obj.execute_compilation:
                             result = None
                             try:
+                                print("Executing student " + name + "'s lab")
                                 result = run(["./" + local_name_dir+"/a.out"], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=command_args_obj.proc_input if command_args_obj.use_proc_input else None)
                                 output = result.stdout
                                 log = open(local_name_dir + "/output.log", "w")
                                 log.write(output)
                                 log.close()
                             except TimeoutExpired:
-                                print("Student " + name + "'s lab took too long.")        
+                                print("Student " + name + "'s lab took too long.")    
+
+
+def prepare_toml_doc():
+    """
+    Creates a default TOML document with predefined sections, keys, and comments.
+    """
+    doc = document()
+
+    # [general] section
+    general = table()
+    general.add(comment(" General configuration settings "))
+    general.add(comment(" the class code you'll be backing up from."))
+    general.add(comment(" valid options: cs1050, cs2050"))
+    general.add("class_code", "")
+    general.add(comment(" how long to attempt running a program before moving on"))
+    general.add(comment(" express in seconds (e.g 5 second timeout = 5)"))
+    general.add("execution_timeout", 5)
+    general.add(comment(" when to invalidate the roster cache. e.g if roster data is X days old, then regen it"))
+    general.add("roster_invalidation_days", 14)
+    general.add(comment(" if your class (or particular use case) uses header files, toggle this to cache necessary files"))
+    general.add(comment(" cs2050 as an example needs header files"))
+    general.add("use_header_files", True)
+    general.add(comment(" if your class (or particular use case) is expecting Makefiles, toggle this to cache files and compile correctly"))
+    general.add("use_makefile", True)
+    doc["general"] = general
+
+    # [paths] section
+    paths = table()
+    paths.add(comment(" the local storage dir will have the class code preappended to it"))
+    paths.add("local_storage_dir", "_local_labs")
+    paths.add(comment(" the hellbender lab dir will have the class code appended to it"))
+    paths.add(comment(" e.g if your lab dir is \"/cluster/pixstor/class/\" and your class code is \"cs1050\", it'll be"))
+    paths.add(comment(" \"/cluster/pixstor/class/cs1050\""))
+    paths.add("hellbender_lab_dir", "/cluster/pixstor/class/")
+    paths.add(comment(" created in the local storage dir"))
+    paths.add("cache_dir", "cache")
+    doc["paths"] = paths
+
+    # [canvas] section
+    canvas = table()
+    canvas.add(comment(" API Prefix for connecting to Canvas"))
+    canvas.add(comment(" This shouldn't need to change for MUCS purposes"))
+    canvas.add("api_prefix", "https://umsystem.instructure.com/api/v1/")
+    canvas.add(comment(" API Token associated with your Canvas user"))
+    canvas.add(comment(" https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312"))
+    canvas.add(comment(" You should keep this secret."))
+    canvas.add("api_token", "")
+    canvas.add(comment(" The Canvas course ID associated with the course you're grading for"))
+    canvas.add(comment(" This can be retrieved by getting it from the course URL: e.g https://umsystem.instructure.com/courses/306521"))
+    canvas.add("course_id", -1)
+    canvas.add(comment(" The naming scheme for the assignment associated with attendance in labs/assignments."))
+    canvas.add("attendance_assignment_name_scheme", "")
+    doc["canvas"] = canvas
+
+    with open(CONFIG_FILE, 'w') as f:
+        f.write(dumps(doc))
+    print(f"Created default {CONFIG_FILE}")
+    
+
+def load_config():
+    with open(CONFIG_FILE, 'r') as f:
+        content = f.read()
+    doc = tomlkit.parse(content)
+
+    # Extract values from the TOML document
+    general = doc.get('general', {})
+    paths = doc.get('paths', {})
+    canvas = doc.get('canvas', {})
+
+    config_obj = Config(
+        class_code=general.get('class_code', ""),
+        execution_timeout=general.get('execution_timeout', -1),
+        roster_invalidation_days=general.get('roster_invalidation_days', -1),
+        use_header_files=general.get('use_header_files', True),
+        use_makefile=general.get('use_makefile', True),
+        local_storage_dir=paths.get('local_storage_dir', ""),
+        hellbender_lab_dir=paths.get('hellbender_lab_dir', ""),
+        cache_dir=paths.get('cache_dir', "cache"),
+        api_prefix=canvas.get('api_prefix', ""),
+        api_token=canvas.get('api_token', ""),
+        course_id=canvas.get('course_id', -1),
+        attendance_assignment_name_scheme=canvas.get('attendance_assignment_name_scheme', "")
+    )
+
+    return config_obj
+
+
 def main(lab_name, grader):
+
+    if not os.path.exists(CONFIG_FILE):
+        print(f"{CONFIG_FILE} does not exist, creating a default one")
+        prepare_toml_doc()
+        print("You'll want to edit this with your correct information. Cancelling further program execution!")
+        exit()
+    config_obj = load_config()
+
+
+
+
 
     # grab command params, and sanitize them
     re.sub(r'\W+', '', lab_name)
@@ -295,12 +397,14 @@ def main(lab_name, grader):
     compile_submission = True, make_submission = False, use_proc_input = False,
     check_attendance = False, clear_previous_labs = True) 
 
-    with open('config.toml', 'r') as f:
-        config = toml.load(f)
+
+
+
+
+
+
     # prepare configuration options
-    config_obj = Config(config['general']['class_code'], config['general']['execution_timeout'], config['general']['roster_invalidation_days'],
-    config['general']['use_header_files'], config['general']['use_makefile'] , config['paths']['local_storage_dir'], config['paths']['hellbender_lab_dir'], config['paths']['cache_dir'], 
-    config['canvas']['api_prefix'], config['canvas']['api_token'], config['canvas']['course_id'], config['canvas']['attendance_assignment_name_scheme'])
+
 
 
     # -x avoids running the compiled output (useful for user input)
