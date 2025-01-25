@@ -18,15 +18,26 @@ from csv import DictReader, DictWriter
 from pathlib import Path
 
 class Config: 
-    def __init__(self, class_code, execution_timeout, roster_invalidation_days, use_header_files, use_makefile ,local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
+    def __init__(self, class_code, execution_timeout, roster_invalidation_days, use_header_files, use_makefile,
+    compile_submissions, execute_submissions, generate_valgrind_output,  clear_existing_backups, input_string, check_attendance,
+    local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
+        # general 
         self.class_code = class_code
         self.execution_timeout = execution_timeout
         self.roster_invalidation_days = roster_invalidation_days
         self.use_header_files = use_header_files
         self.use_makefile = use_makefile
+        self.compile_submissions = compile_submissions
+        self.execute_submissions = execute_submissions
+        self.generate_valgrind_output = generate_valgrind_output
+        self.clear_existing_backups = clear_existing_backups
+        self.input_string = input_string
+        self.check_attendance = check_attendance
+        # paths
         self.local_storage_dir = local_storage_dir
         self.hellbender_lab_dir = hellbender_lab_dir
         self.cache_dir = cache_dir
+        # canvas 
         self.api_prefix = api_prefix
         self.api_token = api_token
         self.course_id = course_id
@@ -39,19 +50,9 @@ class Config:
     def get_complete_cache_path(self): 
         return self.get_complete_local_path() + "/" + self.cache_dir
 class CommandArgs:
-    def __init__(self, lab_name, grader_name, execute_compilation = True, compile_submission = True, make_submission = False,
-    use_proc_input = False, proc_input = None, check_attendance = False, clear_previous_labs = True):
+    def __init__(self, lab_name, grader_name):
         self.lab_name = lab_name
         self.grader_name = grader_name
-        self.execute_compilation = execute_compilation
-        self.compile_submission = compile_submission
-        self.make_submission = make_submission
-        self.use_proc_input = use_proc_input
-        self.proc_input = proc_input
-        self.check_attendance = check_attendance
-        self.clear_previous_labs = clear_previous_labs
-
-
 class Context:
     def __init__(self, config_obj, command_args_obj):
         self.config_obj = config_obj
@@ -185,7 +186,7 @@ def gen_directories(context):
     # double check if the backup folder for the lab exists and if it does, just clear it out and regenerate
     # could also ask if the user is cool with this
     print("Checking path ", param_lab_path)
-    if os.path.exists(param_lab_path) and command_args_obj.clear_previous_labs:
+    if os.path.exists(param_lab_path) and config_obj.clear_existing_backups:
         print("A backup folder for", command_args_obj.lab_name, " already exists. Clearing it and rebuilding")
         shutil.rmtree(param_lab_path)
     print("Creating a backup folder for", command_args_obj.lab_name)
@@ -244,7 +245,7 @@ def perform_backup(context, lab_path):
             #         print(name + " was marked absent during the lab session and does not have a valid submission.")
             #         continue
             pawprint_dir = submissions_dir + "/" + pawprint
-            if (command_args_obj.clear_previous_labs == False):
+            if (config_obj.clear_existing_backups == False):
                 print(local_name_dir)
                 if os.path.exists(local_name_dir) and not os.path.exists(local_name_dir + "/output.log"):
                     print("Student " + pawprint + " already has a non-empty log, skipping")
@@ -265,25 +266,30 @@ def perform_backup(context, lab_path):
                     for x in os.listdir(config_obj.get_complete_cache_path()):
                           shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
                     # if it's a c file, let's try to compile it and write the output to a file
-                    if ".c" in filename and command_args_obj.compile_submission:
+                    if ".c" in filename and config_obj.compile_submissions:
                         print("Compiling student " + name + "'s lab")
                         if config_obj.use_makefile:
                             result = run(["make"], cwd = local_name_dir)
                         else:
                             compilable_lab = local_name_dir + "/" + filename
                             result = run(["gcc", "-Wall", "-Werror", compilable_lab])
-                        if command_args_obj.execute_compilation:
+                        if config_obj.execute_submissions:
                             result = None
                             try:
                                 print("Executing student " + name + "'s lab")
-                                result = run(["./" + local_name_dir+"/a.out"], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=command_args_obj.proc_input if command_args_obj.use_proc_input else None)
-                                output = result.stdout
-                                log = open(local_name_dir + "/output.log", "w")
-                                log.write(output)
-                                log.close()
+                                executable_path = Path(local_name_dir) / "a.out"
+                                output_log_path = Path(local_name_dir) / "output.log"
+                                
+                                result = run([executable_path], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=config_obj.input_string or None)
+                                with output_log_path.open('w') as log:
+                                    log.write(result.stdout)
+                                if config_obj.generate_valgrind_output:
+                                    valgrind_log_path = Path(local_name_dir) / "valgrind.log"
+                                    result = run(["valgrind", executable_path], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=config_obj.input_string or None)
+                                    with valgrind_log_path.open('w') as vg_log:
+                                        vg_log.write(result.stderr)
                             except TimeoutExpired:
                                 print("Student " + name + "'s lab took too long.")    
-
 
 def prepare_toml_doc():
     """
@@ -307,6 +313,19 @@ def prepare_toml_doc():
     general.add("use_header_files", True)
     general.add(comment(" if your class (or particular use case) is expecting Makefiles, toggle this to cache files and compile correctly"))
     general.add("use_makefile", True)
+    general.add(comment(" Whether or not the script should attempt to compile submissions."))
+    general.add("compile_submissions", True)
+    general.add(comment(" Whether or not the script should attempt to execute submissions. "))
+    general.add("execute_submissions", True)
+    general.add(comment(" Whether or not the script should clear existing lab backups."))
+    general.add(comment(" Whether or not the script should also generate a valgrind output of the submission."))
+    general.add(comment(" You need to have previously enabled submission execution for this to work."))
+    general.add("generate_valgrind_output", True)
+    general.add("clear_existing_backups", True)
+    general.add(comment(" If you're executing submissions, this string will be inserted into stdio during execution. Leave blank to not insert anything."))
+    general.add("input_string", "")
+    general.add(comment( " Whether or not to check Canvas for attendance points."))
+    general.add("check_attendance", False)
     doc["general"] = general
 
     # [paths] section
@@ -341,7 +360,6 @@ def prepare_toml_doc():
         f.write(dumps(doc))
     print(f"Created default {CONFIG_FILE}")
     
-
 def load_config():
     with open(CONFIG_FILE, 'r') as f:
         content = f.read()
@@ -358,6 +376,12 @@ def load_config():
         roster_invalidation_days=general.get('roster_invalidation_days', -1),
         use_header_files=general.get('use_header_files', True),
         use_makefile=general.get('use_makefile', True),
+        compile_submissions = general.get('compile_submissions', True),
+        execute_submissions = general.get('execute_submissions', True),
+        generate_valgrind_output = general.get('generate_valgrind_output', True),
+        clear_existing_backups = general.get('clear_existing_backups', True),
+        input_string = general.get("input_string", ""),
+        check_attendance = general.get("check_attendance", False),
         local_storage_dir=paths.get('local_storage_dir', ""),
         hellbender_lab_dir=paths.get('hellbender_lab_dir', ""),
         cache_dir=paths.get('cache_dir', "cache"),
@@ -369,7 +393,6 @@ def load_config():
 
     return config_obj
 
-
 def main(lab_name, grader):
 
     if not os.path.exists(CONFIG_FILE):
@@ -379,50 +402,14 @@ def main(lab_name, grader):
         exit()
     config_obj = load_config()
 
-
-
-
-
     # grab command params, and sanitize them
     re.sub(r'\W+', '', lab_name)
     if (lab_name == "help" or not sys.argv[1] or not sys.argv[2]):
         help()
     re.sub(r'\W+', '', grader)
-    args = None
-    if len(sys.argv) > 3:
-        args = sys.argv[3]
 
     # prepare initial command arguments 
-    command_args_obj = CommandArgs(lab_name, grader, execute_compilation = True, 
-    compile_submission = True, make_submission = False, use_proc_input = False,
-    check_attendance = False, clear_previous_labs = True) 
-
-
-
-
-
-
-
-    # prepare configuration options
-
-
-
-    # -x avoids running the compiled output (useful for user input)
-    if args is not None:
-        if 'x' in args:
-            command_args_obj.execute_compilation = False
-        if 'X' in args:
-            command_args_obj.compile_submission = False
-        if 'm' in args:
-            command_args_obj.make_submission = True
-        if "n" in args:
-            command_args_obj.clear_previous_labs = False
-        if 's' in args and len(sys.argv) > 3:
-            command_args_obj.use_proc_input = True
-            command_args_obj.proc_input = sys.argv[4]
-        if 'a' in args and len(sys.argv) > 3:
-            command_args_obj.check_attendance = True
-            
+    command_args_obj = CommandArgs(lab_name, grader)
 
     context = Context(config_obj, command_args_obj)
     lab_path = gen_directories(context)
