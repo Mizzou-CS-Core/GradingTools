@@ -14,10 +14,12 @@ from csv import DictReader, DictWriter
 from pathlib import Path
 
 class Config: 
-    def __init__(self, class_code, execution_timeout, roster_invalidation_days, local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
+    def __init__(self, class_code, execution_timeout, roster_invalidation_days, use_header_files, use_makefile ,local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
         self.class_code = class_code
         self.execution_timeout = execution_timeout
-        self. roster_invalidation_days = roster_invalidation_days
+        self.roster_invalidation_days = roster_invalidation_days
+        self.use_header_files = use_header_files
+        self.use_makefile = use_makefile
         self.local_storage_dir = local_storage_dir
         self.hellbender_lab_dir = hellbender_lab_dir
         self.cache_dir = cache_dir
@@ -25,6 +27,13 @@ class Config:
         self.api_token = api_token
         self.course_id = course_id
         self.attendance_assignment_name_scheme = attendance_assignment_name_scheme
+
+    def get_complete_hellbender_path(self):
+        return self.hellbender_lab_dir + self.class_code
+    def get_complete_local_path(self):
+        return self.class_code + self.local_storage_dir
+    def get_complete_cache_path(self): 
+        return self.get_complete_local_path() + "/" + self.cache_dir
 class CommandArgs:
     def __init__(self, lab_name, grader_name, execute_compilation = True, compile_submission = True, make_submission = False,
     use_proc_input = False, proc_input = None, check_attendance = False, clear_previous_labs = True):
@@ -183,26 +192,35 @@ def gen_directories(context):
         p.wait()
     return param_lab_path
 
-def perform_backup(context):
+def perform_backup(context, lab_path):
     # locate the directories for submissions dependent on grader
     # also find the pawprints list for the grader
     config_obj = context.config_obj
     command_args_obj = context.command_args_obj
-    grader_csv = config_obj.hellbender_lab_dir + config_obj.class_code + "/csv_rosters/" + command_args_obj.grader_name + ".csv"
-    submissions_dir = config_obj.hellbender_lab_dir + config_obj.class_code  + "/submissions/" + command_args_obj.lab_name + "/" + command_args_obj.grader_name
-    local_name_dir = config_obj.class_code + config_obj.local_storage_dir
+    grader_csv = config_obj.get_complete_hellbender_path() + "/csv_rosters/" + command_args_obj.grader_name + ".csv"
+    submissions_dir = config_obj.get_complete_hellbender_path() + "/submissions/" + command_args_obj.lab_name + "/" + command_args_obj.grader_name
     attendance_assignment_id = None
+
+    # if we're using headers, then we need to cache the necessary files
+    if config_obj.use_header_files:
+        # /.testfiles generally has what we're looking for 
+        print("Copying test files into cache")
+        lab_files_path = config_obj.get_complete_hellbender_path() + "/.testfiles/" + command_args_obj.lab_name + "_temp"
+        for filename in os.listdir(lab_files_path):
+            print(config_obj.get_complete_cache_path())
+            shutil.copy(lab_files_path + "/" + filename, config_obj.get_complete_cache_path())
+
+
+
     # if attendance is true, then we need to go find the assignment we need
-    if command_args_obj.check_attendance == True:
-        with open(cache_path + "/assignment_list.json", 'r') as file:
-            assignment_json = json.load(file)
-            assignment_name = "Attendance: Lab " + lab_name[3:]
-            for key in assignment_json:
-                if key['name'] == assignment_name:
-                    attendance_assignment_id = key['id']
-            if attendance_assignment_id == None:
-                print("Failed to find attendance assignment for " + lab_name + ". Blocking further attendance checking.")
-                check_attendance = False
+    # if command_args_obj.check_attendance == True:
+    #     with open(cache_path + "/assignment_list.json", 'r') as file:
+    #         assignment_json = json.load(file)
+    #         assignment_name = "Attendance: Lab " + lab_name[3:]
+    #         for key in assignment_json:
+    #             if key['name'] == assignment_name:
+    #         if attendance_assignment_id == None:
+    #             print("Failed to find attendance assignment for " + lab_name + ". Blocking further attendance checking.")
 
     with open(grader_csv, "r", newline="") as pawprints_list:
         next(pawprints_list)
@@ -216,12 +234,13 @@ def perform_backup(context):
             pawprint = pawprint.replace("\n", "")
             name = row['name']
             canvas_id = None
+            local_name_dir = lab_path + "/" + name
              
-            if command_args_obj.check_attendance  == True:
-                canvas_id = map_pawprint_to_user_id(pawprint)
-                if not get_assignment_score(attendance_assignment_id, canvas_id, 1):
-                    print(name + " was marked absent during the lab session and does not have a valid submission.")
-                    continue
+            # if command_args_obj.check_attendance  == True:
+            #     canvas_id = map_pawprint_to_user_id(pawprint)
+            #     if not get_assignment_score(attendance_assignment_id, canvas_id, 1):
+            #         print(name + " was marked absent during the lab session and does not have a valid submission.")
+            #         continue
             pawprint_dir = submissions_dir + "/" + pawprint
             if (command_args_obj.clear_previous_labs == False):
                 print(local_name_dir)
@@ -240,38 +259,26 @@ def perform_backup(context):
                 os.makedirs(local_name_dir)
                 for filename in os.listdir(pawprint_dir):
                     shutil.copy(pawprint_dir + "/" + filename, local_name_dir)
-                    if make_submission:
-                        for lab_file in os.listdir(main_dir + "/" + lab_name):
-                            if not os.path.exists(local_name_dir + "/" + lab_file) and not os.path.isdir(main_dir + "/" + lab_name + "/" + lab_file):
-                                shutil.copy(main_dir + "/" + lab_name + "/" + lab_file, local_name_dir)
+                    # grab cache results
+                    for name in os.listdir(config_obj.get_complete_cache_path()):
+                          shutil.copy(config_obj.get_complete_cache_path() + "/" + name, local_name_dir)
                     # if it's a c file, let's try to compile it and write the output to a file
-                    if ".c" in filename and compile_submission:
-                        if make_submission:
+                    if ".c" in filename and command_args_obj.compile_submission:
+                        if config_obj.use_makefile:
                             result = run(["make"], cwd = local_name_dir)
                         else:
                             compilable_lab = local_name_dir + "/" + filename
-                            result = run(["gcc", "-Wall", "-Werror", "-o", local_name_dir + "/" + lab_name, compilable_lab])
-                        if execute_compilation:
+                            result = run(["gcc", "-Wall", "-Werror", compilable_lab])
+                        if command_args_obj.execute_compilation:
                             result = None
-                            if make_submission:
-                                try:
-                                    result = run(["./" + local_name_dir+"/a.out"], timeout=timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=proc_input if use_proc_input else None)
-                                    output = result.stdout
-                                    log = open(local_name_dir + "/output.log", "w")
-                                    log.write(output)
-                                    log.close()
-                                except TimeoutExpired:
-                                    print("Student " + name + "'s lab took too long.")
-                            else:
-                                try:
-                                    result = run(["./" + local_name_dir + "/" + lab_name], timeout=timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=proc_input if use_proc_input else None)
-                                    output = result.stdout
-                                    log = open(local_name_dir + "/output.log", "w")
-                                    log.write(output)
-                                    log.close()
-                                except TimeoutExpired:
-                                    print("Student " + name + "'s lab took too long.")
-                           
+                            try:
+                                result = run(["./" + local_name_dir+"/a.out"], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=command_args_obj.proc_input if command_args_obj.use_proc_input else None)
+                                output = result.stdout
+                                log = open(local_name_dir + "/output.log", "w")
+                                log.write(output)
+                                log.close()
+                            except TimeoutExpired:
+                                print("Student " + name + "'s lab took too long.")        
 def main(lab_name, grader):
 
     # grab command params, and sanitize them
@@ -292,7 +299,7 @@ def main(lab_name, grader):
         config = toml.load(f)
     # prepare configuration options
     config_obj = Config(config['general']['class_code'], config['general']['execution_timeout'], config['general']['roster_invalidation_days'],
-    config['paths']['local_storage_dir'], config['paths']['hellbender_lab_dir'], config['paths']['cache_dir'], 
+    config['general']['use_header_files'], config['general']['use_makefile'] , config['paths']['local_storage_dir'], config['paths']['hellbender_lab_dir'], config['paths']['cache_dir'], 
     config['canvas']['api_prefix'], config['canvas']['api_token'], config['canvas']['course_id'], config['canvas']['attendance_assignment_name_scheme'])
 
 
@@ -315,7 +322,7 @@ def main(lab_name, grader):
 
     context = Context(config_obj, command_args_obj)
     lab_path = gen_directories(context)
-    perform_backup(context)
+    perform_backup(context, lab_path)
 
 if __name__ == "__main__":
     if (len(sys.argv) < 3):
