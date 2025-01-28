@@ -13,7 +13,7 @@ import tomlkit
 from tomlkit import document, table, comment, dumps, loads
 
 
-from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired
+from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
 from csv import DictReader, DictWriter
 from pathlib import Path
 
@@ -61,23 +61,9 @@ class Context:
 
 CONFIG_FILE = "config.toml"
 
-
 # help
 def help():
-    print("Usage: mucs_backup {lab_name} {TA name} {optional_args}")
-    print("Optional arguments include: (in any order or combination)")
-    print(" -x - Disables execution of compiled submissions")
-    print(" -X - Disables compilation of copied submissions")
-    print(" -n - Disables clearing labs if they already exist")
-    print(" -m - Enables use of the makefile associated with a given lab")
-    print(" -s - Prompts mucs_backup to accept a string to pass to stdin of the executed submission.")
-    print("     An example of using -s: ")
-    print("     mucs_backup lab2 Matt -s \"1 5 6\"")
-    print(" 'a' - Prompts mucs_backup to query Canvas on if a student attended the in-person session.")
-    print("     A course id and Canvas API token will need to be provided. ")
-    print("     An example of using -a: ")
-    print("     mucs_backup lab5 Matt -a 253049 1234556789abcdef")
-    print("     Note that if you use -s in conjunction with -a, you will provide the string to stdin as the first argument prior to the course id and token. ")
+    print("Usage: python3 backup.py {lab_name} {TA name}")
     exit()
 # Wrapper function for requests.get that prints for HTTP errors
 def make_api_call(url, token, headers=None):
