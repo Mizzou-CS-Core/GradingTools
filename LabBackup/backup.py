@@ -76,15 +76,10 @@ def make_api_call(url, token, headers=None):
             response = requests.get(url, headers=headers + auth_header) 
         if (response.status_code == 200):
             return response
-        elif (response.status_code == 401):
-            print("Possibly a bad token")
-        elif (response.status_code == 403):
-            print("Forbidden")
         else:
-            print("HTTP Error: " + str(response.status_code)) 
-    
+            print(f"(ERROR) - HTTP Error {response.status_code}")
     except requests.exceptions.RequestException as e:
-        print('Error:', e)
+        print('(ERROR): ', e)
     return None
 # Get individual submission of assignment from Canvas and determine if the score matches the criteria
 def get_assignment_score(assignment_id, user_id, score_criteria):
@@ -241,7 +236,7 @@ def perform_backup(context, lab_path):
                     shutil.rmtree(local_name_dir)
                 
             if not os.path.exists(pawprint_dir):
-                print("Student " + name + " does not have a valid submission. ")
+                print("(WARNING) - Student " + name + " does not have a valid submission. ")
                 continue            
             # if there is a submission, copy it over to the local directory
             else:
@@ -255,8 +250,8 @@ def perform_backup(context, lab_path):
                            shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
                         
                         except PermissionError:
-                            print(f"Unable to copy cached files into student {name}'s directory.")
-                            print("This can happen if a student turned in a file that has an identical name (including the extension)")
+                            print(f"(ERROR) - Unable to copy cached files into student {name}'s directory.")
+                            print("(ERROR) - This can happen if a student turned in a file that has an identical name (including the extension)")
                             continue
                     # if it's a c file, let's try to compile it and write the output to a file
                     if ".c" in filename and config_obj.compile_submissions:
@@ -282,9 +277,9 @@ def perform_backup(context, lab_path):
                                     with valgrind_log_path.open('w') as vg_log:
                                         vg_log.write(result.stderr)
                             except TimeoutExpired:
-                                print("Student " + name + "'s lab took too long.")
+                                print("(WARNING) - Student " + name + "'s lab took too long.")
                             except FileNotFoundError:
-                                print(f"Student {name}'s lab didn't produce an executable. Double check that their submission is correct.")    
+                                print(f"(ERROR) - Student {name}'s lab didn't produce an executable. Double check that their submission is correct.")    
 
 def prepare_toml_doc():
     """
