@@ -262,9 +262,16 @@ def perform_backup(context, lab_path):
                 os.makedirs(local_name_dir)
                 for filename in os.listdir(pawprint_dir):
                     shutil.copy(pawprint_dir + "/" + filename, local_name_dir)
+
                     # grab cache results
                     for x in os.listdir(config_obj.get_complete_cache_path()):
-                          shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
+                        try:
+                           shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
+                        
+                        except PermissionError:
+                            print(f"Unable to copy cached files into student {name}'s directory.")
+                            print("This can happen if a student turned in a file that has an identical name (including the extension)")
+                            continue
                     # if it's a c file, let's try to compile it and write the output to a file
                     if ".c" in filename and config_obj.compile_submissions:
                         print("Compiling student " + name + "'s lab")
@@ -289,7 +296,9 @@ def perform_backup(context, lab_path):
                                     with valgrind_log_path.open('w') as vg_log:
                                         vg_log.write(result.stderr)
                             except TimeoutExpired:
-                                print("Student " + name + "'s lab took too long.")    
+                                print("Student " + name + "'s lab took too long.")
+                            except FileNotFoundError:
+                                print(f"Student {name}'s lab didn't produce an executable. Double check that their submission is correct.")    
 
 def prepare_toml_doc():
     """
