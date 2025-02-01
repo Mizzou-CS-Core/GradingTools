@@ -98,7 +98,7 @@ def generate_grader_roster(context):
     csv_rosters_path = config_obj.hellbender_lab_dir + config_obj.class_code + "/csv_rosters"
     fieldnames = ['pawprint', 'canvas_id', 'name', 'date']
     # first we'll check if the roster already exists.
-    if os.path.exists(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv") and Path(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv").stat().st_size != 0:
+    if os.path.exists(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv") and Path(csv_rosters_path + "/" + command_args_obj.grader_name + ".csv").stat().st_size != 0 and config_obj.roster_invalidation_days > 0:
         invalidation_date = datetime.datetime.now() - datetime.timedelta(days=config_obj.roster_invalidation_days)
         # if it does, let's see how old it is
         # every student has a date appended to it which should be the same so we'll just check the first one
@@ -314,6 +314,7 @@ def prepare_toml_doc():
     general.add(comment(" express in seconds (e.g 5 second timeout = 5)"))
     general.add("execution_timeout", 5)
     general.add(comment(" when to invalidate the roster cache. e.g if roster data is X days old, then regen it"))
+    general.add(comment(" You can change this value to anything below 1 to always invalidate the roster cache. "))
     general.add("roster_invalidation_days", 14)
     general.add(comment(" if your class (or particular use case) uses header files, toggle this to cache necessary files"))
     general.add(comment(" cs2050 as an example needs header files"))
