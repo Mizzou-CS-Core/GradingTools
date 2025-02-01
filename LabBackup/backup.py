@@ -62,7 +62,7 @@ class Context:
 CONFIG_FILE = "config.toml"
 
 # help
-def help():
+def help(): 
     print("Usage: python3 backup.py {lab_name} {TA name}")
     exit()
 # Wrapper function for requests.get that prints for HTTP errors
@@ -81,13 +81,15 @@ def make_api_call(url, token, headers=None):
     except requests.exceptions.RequestException as e:
         print('(ERROR): ', e)
     return None
-# Get individual submission of assignment from Canvas and determine if the score matches the criteria
-def get_assignment_score(assignment_id, user_id, score_criteria):
-        canvas_assignments_submission_api = canvas_api_prefix + "courses/" + str(course_id) + "/assignments/" + str(assignment_id) + "/submissions/" + str(user_id)
-        response = make_api_call(canvas_assignments_submission_api, token)
-        if response is not None:
-            if (response.json()['entered_score'] >= score_criteria):
-                return True
+# Get individual submission of assignment from cache and determine if the score matches the criteria
+def get_assignment_score(config_obj, user_id):
+     with open(config_obj.get_complete_cache_path() + "/attendance_submissions.json", 'r', encoding='utf-8') as file:
+        submissions = json.load(file)
+
+        for key in submissions:        
+            if key['user_id'] == int(user_id):
+                if key['score'] == 1.0:
+                    return True
         return False
 # Generates a roster based on the grader's group on Canvas. 
 def generate_grader_roster(context):
@@ -138,11 +140,26 @@ def generate_grader_roster(context):
         writer.writerows(data)
 
 # Get list of assignments from Canvas and export to JSON file 
-def generate_assignment_list(course_id, token, cache_path):
-    canvas_assignments_api = canvas_api_prefix + "courses/" +course_id + "/assignments/"
-    response = make_api_call(canvas_assignments_api, token)
-    with open(cache_path + "/assignment_list.json", 'w', encoding='utf-8') as file:
+def generate_assignment_list(config_obj, command_args_obj):
+    assignment_id = 0
+    canvas_assignments_api = config_obj.api_prefix + "courses/" + str(config_obj.course_id) + "/assignments?per_page=50"
+    response = make_api_call(canvas_assignments_api, config_obj.api_token)
+    attendance_name = config_obj.attendance_assignment_name_scheme + command_args_obj.lab_name[3:]
+    for key in response.json():
+        if key['name'] == config_obj.attendance_assignment_name_scheme + command_args_obj.lab_name[3:]:
+            assignment_id = key['id']
+    if assignment_id == 0:
+        print(f"(ERROR) - Unable to find an assignment matching {attendance_name} from Canvas.")
+        print("(ERROR) - Disabling attendance checking for this execution.")
+        config_obj.check_attendance = False
+        return
+    canvas_assignments_api = config_obj.api_prefix + "courses/" + str(config_obj.course_id) + "/assignments/" + str(assignment_id) + "/submissions?per_page=200"
+    response = make_api_call(canvas_assignments_api, config_obj.api_token)
+
+    with open(config_obj.get_complete_cache_path() + "/attendance_submissions.json", 'w', encoding='utf-8') as file:
         json.dump(response.json(), file, ensure_ascii=False, indent=4)
+    
+    
 
 # Preamble function responsible for generating and prepping any necessary directories and files
 def gen_directories(context):
@@ -217,14 +234,14 @@ def perform_backup(context, lab_path):
             pawprint = re.sub(r'\W+', '', pawprint)
             pawprint = pawprint.replace("\n", "")
             name = row['name']
-            canvas_id = None
+            canvas_id = row['canvas_id']
             local_name_dir = lab_path + "/" + name
              
-            # if command_args_obj.check_attendance  == True:
-            #     canvas_id = map_pawprint_to_user_id(pawprint)
-            #     if not get_assignment_score(attendance_assignment_id, canvas_id, 1):
-            #         print(name + " was marked absent during the lab session and does not have a valid submission.")
-            #         continue
+            if config_obj.check_attendance  == True:
+                if not get_assignment_score(config_obj, canvas_id):
+                    print(f"(WARNING): {name} was marked absent during the lab session and therefore does not have a valid submission.")
+                    print("(WARNING): Skipping compilation!")
+                    continue
             pawprint_dir = submissions_dir + "/" + pawprint
             if (config_obj.clear_existing_backups == False):
                 print(local_name_dir)
@@ -403,6 +420,8 @@ def main(lab_name, grader):
 
     context = Context(config_obj, command_args_obj)
     lab_path = gen_directories(context)
+    if (config_obj.check_attendance):
+        generate_assignment_list(config_obj, command_args_obj)
     perform_backup(context, lab_path)
 
 if __name__ == "__main__":
