@@ -1,5 +1,108 @@
 # MUCSMake 
 # Utility to collect student lab submissions
 
+import getpass
+import sys
+import toml
+import os 
+from datetime import datetime
+
+import tomlkit
+from tomlkit import document, table, comment, dumps, loads
+from csv import DictReader, DictWriter
+
+
+class Config:
+    def __init__(self, lab_window_path):
+        self.lab_window_path = lab_window_path
+
+
+
+CONFIG_FILE = "config.toml"
+date_format = "%Y-%m-%d_%H:%M:%S"
+
+
+def main(username, class_code, lab_name, file_name):
+    if not os.path.exists(CONFIG_FILE):
+        print(f"{CONFIG_FILE} does not exist, creating a default one")
+        prepare_toml_doc()
+        print("You'll want to edit this with your correct information. Cancelling further program execution!")
+        exit()
+    config_obj = prepare_config_obj()
+    if not verify_lab_window(config_obj, lab_name):
+        print("Lab name not found")
+    if not retrieve_lab_window(config_obj, lab_name):
+        print("Bad")
+    
+
+
+
+def retrieve_lab_window(config_obj, lab_name):
+    with open(config_obj.lab_window_path, 'r', newline="") as window_list:
+        next(window_list)
+        fieldnames = ["lab_name", "start_date", "end_date"]
+        csvreader = DictReader(window_list, fieldnames=fieldnames)
+        for row in csvreader:
+            if row['lab_name'] == lab_name:
+                today = datetime.today()
+                start_date = datetime.strptime(row['start_date'], date_format)
+                end_date = datetime.strptime(row['end_date'], date_format)
+                if start_date < today < end_date:
+                    return True
+                else:
+                    print("Submission outside of window")
+                    return False
+        print("Unable to find lab name")
+
+    return False
+def verify_lab_window(config_obj, lab_name):
+    with open(config_obj.lab_window_path, 'r', newline="") as window_list:
+        next(window_list)
+        fieldnames = ["lab_name", "start_date", "end_date"]
+        csvreader = DictReader(window_list, fieldnames=fieldnames)
+        for row in csvreader:
+            if row['lab_name'] == lab_name:
+                return True
+    return False
+
+        
+
+
+# Creates a new toml file.
+def prepare_toml_doc():
+    doc = document()
+
+    general = table()
+    paths = table()
+    paths.add("lab_window_path", "")
+
+    doc['paths'] = paths
+
+
+    with open(CONFIG_FILE, 'w') as f:
+        f.write(dumps(doc))
+    print(f"Created default {CONFIG_FILE}")
+    
+def prepare_config_obj():
+    with open(CONFIG_FILE, 'r') as f:
+        content = f.read()
+    doc = tomlkit.parse(content)
+
+    # Extract values from the TOML document
+    general = doc.get('general', {})
+    paths = doc.get('paths', {})
+    canvas = doc.get('canvas', {})
+
+
+    return Config(lab_window_path = paths.get('lab_window_path'))
+
+
+if __name__ == "__main__":
+    username = getpass.getuser()
+    class_code = sys.argv[1]
+    lab_name = sys.argv[2]
+    file_name = sys.argv[3]
+    main(username, class_code, lab_name, file_name)
+
 
 
