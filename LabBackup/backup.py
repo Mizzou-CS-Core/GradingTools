@@ -20,7 +20,7 @@ from pathlib import Path
 class Config: 
     def __init__(self, class_code, execution_timeout, roster_invalidation_days, use_header_files, use_makefile,
     compile_submissions, execute_submissions, generate_valgrind_output,  clear_existing_backups, input_string, check_attendance,
-    local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme):
+    local_storage_dir, hellbender_lab_dir, cache_dir, api_prefix, api_token, course_id, attendance_assignment_name_scheme, attendance_assignment_point_criterion):
         # general 
         self.class_code = class_code
         self.execution_timeout = execution_timeout
@@ -42,6 +42,7 @@ class Config:
         self.api_token = api_token
         self.course_id = course_id
         self.attendance_assignment_name_scheme = attendance_assignment_name_scheme
+        self.attendance_assignment_point_criterion = attendance_assignment_point_criterion
 
     def get_complete_hellbender_path(self):
         return self.hellbender_lab_dir + self.class_code
@@ -88,10 +89,10 @@ def get_assignment_score(config_obj, user_id):
 
         for key in submissions:        
             if key['user_id'] == int(user_id):
-                if key['score'] == 1.0:
+                if key['score'] == config_obj.attendance_assignment_point_criterion:
                     return True
         return False
-# Generates a roster based on the grader's group on Canvas. 
+# Generates a roster based on the grader's group on Canvas. s
 def generate_grader_roster(context):
     config_obj = context.config_obj
     command_args_obj = context.command_args_obj
@@ -269,7 +270,7 @@ def perform_backup(context, lab_path):
                         except PermissionError:
                             print(f"(ERROR) - Unable to copy cached files into student {name}'s directory.")
                             print("(ERROR) - This can happen if a student turned in a file that has an identical name (including the extension)")
-                            continue
+                            continues
                     # if it's a c file, let's try to compile it and write the output to a file
                     if ".c" in filename and config_obj.compile_submissions:
                         print("Compiling student " + name + "'s lab")
@@ -277,7 +278,7 @@ def perform_backup(context, lab_path):
                             result = run(["make"], cwd = local_name_dir)
                         else:
                             compilable_lab = local_name_dir + "/" + filename
-                            result = run(["gcc", "-Wall", "-Werror", compilable_lab])
+                            result = run(["gcc", "-Wall", "-Werror", "-o", local_name_dir + "/a.out", compilable_lab])
                         if config_obj.execute_submissions:
                             result = None
                             try:
@@ -325,9 +326,9 @@ def prepare_toml_doc():
     general.add("compile_submissions", True)
     general.add(comment(" Whether or not the script should attempt to execute submissions. "))
     general.add("execute_submissions", True)
-    general.add(comment(" Whether or not the script should clear existing lab backups."))
     general.add(comment(" Whether or not the script should also generate a valgrind output of the submission."))
     general.add(comment(" You need to have previously enabled submission execution for this to work."))
+    general.add(comment(" Whether or not the script should clear existing lab backups."))
     general.add("generate_valgrind_output", True)
     general.add("clear_existing_backups", True)
     general.add(comment(" If you're executing submissions, this string will be inserted into stdio during execution. Leave blank to not insert anything."))
@@ -362,6 +363,8 @@ def prepare_toml_doc():
     canvas.add("course_id", -1)
     canvas.add(comment(" The naming scheme for the assignment associated with attendance in labs/assignments."))
     canvas.add("attendance_assignment_name_scheme", "")
+    canvas.add(comment(" How many points a student should have in the attendance assignment to qualify for compilation. "))
+    canvas.add("attendance_assignment_point_criterion", 1.0)
     doc["canvas"] = canvas
 
     with open(CONFIG_FILE, 'w') as f:
@@ -396,9 +399,9 @@ def load_config():
         api_prefix=canvas.get('api_prefix', ""),
         api_token=canvas.get('api_token', ""),
         course_id=canvas.get('course_id', -1),
-        attendance_assignment_name_scheme=canvas.get('attendance_assignment_name_scheme', "")
+        attendance_assignment_name_scheme=canvas.get('attendance_assignment_name_scheme', ""),
+        attendance_assignment_point_criterion = canvas.get("attendance_assignment_point_criterion", 1)
     )
-
     return config_obj
 
 def main(lab_name, grader):
