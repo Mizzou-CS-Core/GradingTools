@@ -14,8 +14,11 @@ from csv import DictReader, DictWriter
 
 
 class Config:
-    def __init__(self, lab_window_path):
-        self.lab_window_path = lab_window_path
+    def __init__(self,class_code, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory):
+        self.class_code = class_code
+        self.base_path = base_path
+        self.lab_window_path = base_path + "/" + class_code + "/" + lab_window_path
+        self.lab_submission_directory = base_path + "/" + class_code + "/" + lab_submission_directory
 
 
 
@@ -101,6 +104,8 @@ def prepare_toml_doc():
     paths.add("base_path", "/cluster/pixstor/class/")
     paths.add("lab_window_path", "")
     paths.add("lab_submission_directory", "/submissions")
+    paths.add("test_files_directory", "/test_files")
+    paths.add("roster_directory", "/csv_rosters")
     doc['general'] = general
     doc['paths'] = paths
 
