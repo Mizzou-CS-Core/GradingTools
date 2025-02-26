@@ -6,6 +6,7 @@ import sys
 import toml
 import os 
 import re
+import shutil
 from datetime import datetime
 
 import tomlkit
@@ -20,6 +21,7 @@ class Config:
         self.lab_window_path = base_path + class_code + lab_window_path
         self.lab_submission_directory = base_path + class_code + lab_submission_directory
         self.roster_directory = base_path + class_code + roster_directory
+        self.test_files_directory = base_path + class_code + test_files_directory
 
 
 
@@ -47,6 +49,8 @@ def main(username, class_code, lab_name, file_name):
     if not lab_header_inclusion:
         print(f"*** Warning: your submission {file_name} does not include the lab header file. ***")
     grader = determine_section(config_obj, username)
+    student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
+
 
 
 # Uses a Regex string to detect if the lab header has been included in the file
@@ -90,6 +94,7 @@ def verify_lab_window(config_obj, lab_name):
     return False
 def determine_section(config_obj, username):
     # to-do: can we parallelize this search?
+    # probably just use a grep subprocess
     for roster_filename in os.listdir(config_obj.roster_directory):
         with open(config_obj.roster_directory + "/" + roster_filename, 'r') as csv_file:
             next(csv_file)
@@ -99,8 +104,17 @@ def determine_section(config_obj, username):
                 if username == row['pawprint']:
                     return roster_filename.replace(".csv", '')
 
-def prepare_test_directory(config_obj, file_name, lab_name):
+def prepare_test_directory(config_obj, file_name, lab_name, username):
     lab_files_dir = config_obj.test_files_directory + "/" + lab_name + "_temp"
+    student_temp_files_dir = lab_files_dir + "/" + lab_name + "_" + username + "_temp"
+    print(student_temp_files_dir)
+    os.makedirs(student_temp_files_dir)
+    for entry in os.scandir(lab_files_dir):
+        if entry.is_dir():
+            continue
+        shutil.copy(entry.path, student_temp_files_dir)
+    shutil.copy(file_name, student_temp_files_dir)
+    return student_temp_files_dir
 
 
 
