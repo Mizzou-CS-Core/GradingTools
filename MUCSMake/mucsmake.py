@@ -12,6 +12,7 @@ from datetime import datetime
 import tomlkit
 from tomlkit import document, table, comment, dumps, loads
 from csv import DictReader, DictWriter
+from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
 
 
 class Config:
@@ -50,6 +51,9 @@ def main(username, class_code, lab_name, file_name):
         print(f"*** Warning: your submission {file_name} does not include the lab header file. ***")
     grader = determine_section(config_obj, username)
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
+    # Stage 3 - Compile and Run
+    compile_and_run_submission(config_obj, student_temp_dir)
+
 
 
 
@@ -65,7 +69,7 @@ def verify_lab_file_existence(config_obj, file_name):
     if os.path.exists(file_name):
         return True
     return False
-def retrieve_lab_window(config_obj, lab_name):
+def retrieve_lab_window(config_obj, lab_nsame):
     with open(config_obj.lab_window_path, 'r', newline="") as window_list:
         next(window_list)
         fieldnames = ["lab_name", "start_date", "end_date"]
@@ -116,6 +120,31 @@ def prepare_test_directory(config_obj, file_name, lab_name, username):
     shutil.copy(file_name, student_temp_files_dir)
     return student_temp_files_dir
 
+def compile_and_run_submission(config_obj, temp_dir):
+    is_make = False
+    for entry in os.scandir(temp_dir):
+        print(entry)
+        if (entry.name == "Makefile"):
+            is_make = True
+            break
+    result = None
+    if (is_make):
+        result = run(["make"], cwd=temp_dir)
+    else:
+        result = run(["compile"], cwd=temp_dir)
+    # returns 2 if doesnt link
+    if (result.returncode):
+        return 1
+    executable_path = temp_dir + "/a.out"
+    stdout = run([executable_path], timeout=5, stdout=PIPE, stderr=PIPE, universal_newlines=True).stdout
+    stderr = run(["valgrind", executable_path], stdout=PIPE, stderr=PIPE, universal_newlines=True).stderr
+
+    print(stdout)
+    if re.search("[1-9]\d*\s+errors", stderr):
+        print("Detected valgrind errors")
+    if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
+        print("Memory leak detected")
+    print(stderr)
 
 
 # Creates a new toml file.
