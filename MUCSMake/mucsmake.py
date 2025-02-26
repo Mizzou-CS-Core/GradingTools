@@ -17,8 +17,9 @@ class Config:
     def __init__(self,class_code, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory):
         self.class_code = class_code
         self.base_path = base_path
-        self.lab_window_path = base_path + "/" + class_code + "/" + lab_window_path
-        self.lab_submission_directory = base_path + "/" + class_code + "/" + lab_submission_directory
+        self.lab_window_path = base_path + class_code + lab_window_path
+        self.lab_submission_directory = base_path + class_code + lab_submission_directory
+        self.roster_directory = base_path + class_code + roster_directory
 
 
 
@@ -44,6 +45,7 @@ def main(username, class_code, lab_name, file_name):
     lab_header_inclusion = verify_lab_header_inclusion(config_obj, file_name, lab_name)
     if not lab_header_inclusion:
         print(f"*** Warning: your submission {file_name} does not include the lab header file. ***")
+    determine_section(config_obj, username)
 
 
 # Uses a Regex string to detect if the lab header has been included in the file
@@ -87,7 +89,8 @@ def verify_lab_window(config_obj, lab_name):
             if row['lab_name'] == lab_name:
                 return True
     return False
-
+def determine_section(config_obj, username):
+    print(config_obj.roster_directory)
         
 
 
@@ -125,7 +128,9 @@ def prepare_config_obj():
     canvas = doc.get('canvas', {})
 
 
-    return Config(lab_window_path = paths.get('lab_window_path'))
+    return Config(class_code = general.get('class_code'), base_path = paths.get('base_path'), 
+    lab_submission_directory = paths.get('lab_submission_directory'), test_files_directory = paths.get('test_files_directory'),
+    roster_directory = paths.get('roster_directory'), lab_window_path = paths.get('lab_window_path'))
 
 
 if __name__ == "__main__":
