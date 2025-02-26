@@ -42,19 +42,18 @@ def main(username, class_code, lab_name, file_name):
     lab_file_status = verify_lab_file_existence(config_obj, file_name)
     if not lab_file_status:
         print(f"*** Error: file {file_name} does not exist in the current directory. ***")
+        exit()
     lab_header_inclusion = verify_lab_header_inclusion(config_obj, file_name, lab_name)
     if not lab_header_inclusion:
         print(f"*** Warning: your submission {file_name} does not include the lab header file. ***")
-    determine_section(config_obj, username)
+    grader = determine_section(config_obj, username)
 
 
 # Uses a Regex string to detect if the lab header has been included in the file
 def verify_lab_header_inclusion(config_obj, file_name, lab_name):
     search_pattern = f"^(#include)\s*(\"{lab_name}.h\")"
-    print(search_pattern)
     with open(file_name, 'r') as c_file:
         for line in c_file:
-            print(line)
             if re.search(search_pattern, line):
                 return True
     return False
@@ -90,8 +89,19 @@ def verify_lab_window(config_obj, lab_name):
                 return True
     return False
 def determine_section(config_obj, username):
-    print(config_obj.roster_directory)
-        
+    # to-do: can we parallelize this search?
+    for roster_filename in os.listdir(config_obj.roster_directory):
+        with open(config_obj.roster_directory + "/" + roster_filename, 'r') as csv_file:
+            next(csv_file)
+            fieldnames = ['pawprint', 'canvas_id', 'name', 'date']
+            csv_roster = DictReader(csv_file, fieldnames=fieldnames)
+            for row in csv_roster:
+                if username == row['pawprint']:
+                    return roster_filename.replace(".csv", '')
+
+def prepare_test_directory(config_obj, file_name, lab_name):
+    lab_files_dir = config_obj.test_files_directory + "/" + lab_name + "_temp"
+
 
 
 # Creates a new toml file.
@@ -135,7 +145,8 @@ def prepare_config_obj():
 
 if __name__ == "__main__":
     # Stage 0 - Collect Command Args
-    username = getpass.getuser()
+    # username = getpass.getuser()
+    username = 'adnnk2'
     class_code = sys.argv[1]
     lab_name = sys.argv[2]
     file_name = sys.argv[3]
