@@ -142,13 +142,15 @@ def compile_and_run_submission(config_obj, temp_dir):
         return 1
     executable_path = temp_dir + "/a.out"
     stdout = run([executable_path], timeout=5, stdout=PIPE, stderr=PIPE, universal_newlines=True).stdout
-    stderr = run(["valgrind", executable_path], stdout=PIPE, stderr=PIPE, universal_newlines=True).stderr
+    if (config_obj.run_valgrind)
+        stderr = run(["valgrind", executable_path], stdout=PIPE, stderr=PIPE, universal_newlines=True).stderr
+        if re.search("[1-9]\d*\s+errors", stderr):
+            print("Detected valgrind errors")
+        if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
+            print("Memory leak detected")
 
     print(stdout)
-    if re.search("[1-9]\d*\s+errors", stderr):
-        print("Detected valgrind errors")
-    if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
-        print("Memory leak detected")
+    
 
 
 # Creates a new toml file.
