@@ -7,15 +7,21 @@ import toml
 import os 
 import re
 import shutil
+import signal
 from datetime import datetime
 
 import tomlkit
 
+# https://pypi.org/project/colorama/
+from colorama import init as colorama_init
+from colorama import Fore, Back
+from colorama import Style
 
 
 from tomlkit import document, table, comment, dumps, loads
 from csv import DictReader, DictWriter
-from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
+import subprocess
+from subprocess import DEVNULL, PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
 
 
 class Config:
@@ -37,6 +43,7 @@ date_format = "%Y-%m-%d_%H:%M:%S"
 def main(username, class_code, lab_name, file_name):
     # Stage 1 - Prepare Configuration
     colorama_init()
+    
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} does not exist, creating a default one")
         prepare_toml_doc()
@@ -128,28 +135,36 @@ def prepare_test_directory(config_obj, file_name, lab_name, username):
 def compile_and_run_submission(config_obj, temp_dir):
     is_make = False
     for entry in os.scandir(temp_dir):
-        print(entry)
         if (entry.name == "Makefile"):
             is_make = True
             break
     result = None
     if (is_make):
-        result = run(["make"], cwd=temp_dir)
+        result = run(["make"], cwd=temp_dir, stdout=DEVNULL, stderr=PIPE, universal_newlines=True, env=env)
     else:
         result = run(["compile"], cwd=temp_dir)
     # returns 2 if doesnt link
-    if (result.returncode):
-        return 1
+    if (result.returncode != 0):
+        print(result.stderr)
+        print(f"{Back.RED}Submitted program does not compile!{Style.RESET_ALL}")
+        return False
     executable_path = temp_dir + "/a.out"
-    stdout = run([executable_path], timeout=5, stdout=PIPE, stderr=PIPE, universal_newlines=True).stdout
-    if (config_obj.run_valgrind)
+    result = run(["stdbuf", "-oL", executable_path], timeout=5, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+    print(result.stdout)
+    # we got an error
+    if (result.returncode < 0):
+        signum = -result.returncode
+        if (signum == signal.SIGSEGV):
+            print(f"{Fore.RED}Segmentation fault detected!{Style.RESET_ALL}")
+    if (config_obj.run_valgrind):
         stderr = run(["valgrind", executable_path], stdout=PIPE, stderr=PIPE, universal_newlines=True).stderr
         if re.search("[1-9]\d*\s+errors", stderr):
-            print("Detected valgrind errors")
+            print(f"{Fore.RED}Valgrind: There were errors in your program!{Style.RESET_ALL}")
         if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
-            print("Memory leak detected")
-
-    print(stdout)
+            print(f"{Fore.RED}Valgrind: Memory leak detected!{Style.RESET_ALL}")
+    return True
+    
+    
     
 
 
