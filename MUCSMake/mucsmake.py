@@ -43,7 +43,6 @@ date_format = "%Y-%m-%d_%H:%M:%S"
 def main(username, class_code, lab_name, file_name):
     # Stage 1 - Prepare Configuration
     colorama_init()
-    
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} does not exist, creating a default one")
         prepare_toml_doc()
@@ -53,18 +52,20 @@ def main(username, class_code, lab_name, file_name):
     # Stage 2 - Prepare Compilation
     lab_window_file_status = verify_lab_window(config_obj, lab_name)
     if not lab_window_file_status:
-        print("*** Lab number missing or invalid. Please check again. ***")
+        print(f"{Fore.RED}*** Lab number missing or invalid. Please check again. ***{Style.RESET_ALL}")
     lab_file_status = verify_lab_file_existence(config_obj, file_name)
     if not lab_file_status:
-        print(f"*** Error: file {file_name} does not exist in the current directory. ***")
+        print(f"{Fore.RED}*** Error: file {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.RED} does not exist in the current directory. ***{Style.RESET_ALL}")
         exit()
     lab_header_inclusion = verify_lab_header_inclusion(config_obj, file_name, lab_name)
     if not lab_header_inclusion:
-        print(f"*** Warning: your submission {file_name} does not include the lab header file. ***")
+        print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} does not include the lab header file. ***{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}*** There's a good chance your program won't compile! ***{Style.RESET_ALL}")
     grader = determine_section(config_obj, username)
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
     # Stage 3 - Compile and Run
-    compile_and_run_submission(config_obj, student_temp_dir)
+    run_result = compile_and_run_submission(config_obj, student_temp_dir)
+    clean_up_test_directory(config_obj, student_temp_dir)
 
 
 
@@ -123,7 +124,6 @@ def determine_section(config_obj, username):
 def prepare_test_directory(config_obj, file_name, lab_name, username):
     lab_files_dir = config_obj.test_files_directory + "/" + lab_name + "_temp"
     student_temp_files_dir = lab_files_dir + "/" + lab_name + "_" + username + "_temp"
-    print(student_temp_files_dir)
     os.makedirs(student_temp_files_dir)
     for entry in os.scandir(lab_files_dir):
         if entry.is_dir():
@@ -131,7 +131,6 @@ def prepare_test_directory(config_obj, file_name, lab_name, username):
         shutil.copy(entry.path, student_temp_files_dir)
     shutil.copy(file_name, student_temp_files_dir)
     return student_temp_files_dir
-
 def compile_and_run_submission(config_obj, temp_dir):
     is_make = False
     for entry in os.scandir(temp_dir):
@@ -140,13 +139,13 @@ def compile_and_run_submission(config_obj, temp_dir):
             break
     result = None
     if (is_make):
-        result = run(["make"], cwd=temp_dir, stdout=DEVNULL, stderr=PIPE, universal_newlines=True, env=env)
+        result = run(["make"], cwd=temp_dir, stdout=DEVNULL, stderr=PIPE, universal_newlines=True)
     else:
         result = run(["compile"], cwd=temp_dir)
     # returns 2 if doesnt link
     if (result.returncode != 0):
         print(result.stderr)
-        print(f"{Back.RED}Submitted program does not compile!{Style.RESET_ALL}")
+        print(f"{Back.RED}*** Error: Submitted program does not compile! ***{Style.RESET_ALL}")
         return False
     executable_path = temp_dir + "/a.out"
     result = run(["stdbuf", "-oL", executable_path], timeout=5, stdout=PIPE, stderr=PIPE, universal_newlines=True)
@@ -163,9 +162,8 @@ def compile_and_run_submission(config_obj, temp_dir):
         if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
             print(f"{Fore.RED}Valgrind: Memory leak detected!{Style.RESET_ALL}")
     return True
-    
-    
-    
+def clean_up_test_directory(config_obj, temp_dir):
+    shutil.rmtree(temp_dir)
 
 
 # Creates a new toml file.
