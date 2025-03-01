@@ -155,6 +155,7 @@ def prepare_toml_doc():
     general.add("class_code", "2050")
     general.add(comment("Checks for a C header file corresponding to the lab name in the submission."))
     general.add("check_lab_header", True)
+    general.add("run_valgrind", True)
     
     paths = table()
     paths.add("base_path", "/cluster/pixstor/class/")
