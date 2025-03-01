@@ -10,14 +10,18 @@ import shutil
 from datetime import datetime
 
 import tomlkit
+
+
+
 from tomlkit import document, table, comment, dumps, loads
 from csv import DictReader, DictWriter
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
 
 
 class Config:
-    def __init__(self,class_code, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory):
+    def __init__(self,class_code, run_valgrind, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory):
         self.class_code = class_code
+        self.run_valgrind = run_valgrind
         self.base_path = base_path
         self.lab_window_path = base_path + class_code + lab_window_path
         self.lab_submission_directory = base_path + class_code + lab_submission_directory
@@ -32,6 +36,7 @@ date_format = "%Y-%m-%d_%H:%M:%S"
 
 def main(username, class_code, lab_name, file_name):
     # Stage 1 - Prepare Configuration
+    colorama_init()
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} does not exist, creating a default one")
         prepare_toml_doc()
@@ -144,7 +149,6 @@ def compile_and_run_submission(config_obj, temp_dir):
         print("Detected valgrind errors")
     if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
         print("Memory leak detected")
-    print(stderr)
 
 
 # Creates a new toml file.
@@ -182,8 +186,8 @@ def prepare_config_obj():
     canvas = doc.get('canvas', {})
 
 
-    return Config(class_code = general.get('class_code'), base_path = paths.get('base_path'), 
-    lab_submission_directory = paths.get('lab_submission_directory'), test_files_directory = paths.get('test_files_directory'),
+    return Config(class_code = general.get('class_code'), run_valgrind = general.get('run_valgrind'), 
+    base_path = paths.get('base_path'), lab_submission_directory = paths.get('lab_submission_directory'), test_files_directory = paths.get('test_files_directory'),
     roster_directory = paths.get('roster_directory'), lab_window_path = paths.get('lab_window_path'))
 
 
