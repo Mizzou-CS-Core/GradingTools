@@ -36,6 +36,9 @@ class Config:
         self.lab_submission_directory = base_path + class_code + lab_submission_directory
         self.roster_directory = base_path + class_code + roster_directory
         self.test_files_directory = base_path + class_code + test_files_directory
+    def get_base_path_with_class_code(self):
+        return self.base_path + self.class_code
+
 
 
 
@@ -68,6 +71,9 @@ def main(username, class_code, lab_name, file_name):
     lab_window_status = verify_lab_window(config_obj, lab_name)
     if not lab_window_status:
         print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} is outside of the submission window. ***{Style.RESET_ALL}")
+    enrollment_status = verify_student_enrollment(config_obj)
+    if not enrollment_status:
+        print(f"{Fore.RED}*** Error: You are not enrolled in {Style.RESET_ALL}{Fore.BLUE}{config_obj.class_code}{Style.RESET_ALL}{Fore.RED} ")
     grader = determine_section(config_obj, username)
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
     # Stage 3 - Compile and Run
@@ -115,6 +121,16 @@ def verify_lab_name(config_obj, lab_name):
             if row['lab_name'] == lab_name:
                 return True
     return False
+def verify_student_enrollment(config_obj):
+    path = os.environ.get("PATH", "")
+    directories = path.split(":")
+    print(directories)
+    target = config_obj.get_base_path_with_class_code() + "/bin"
+    if target in directories:
+        return True
+    return False
+
+
 def determine_section(config_obj, username):
     # to-do: can we parallelize this search?
     # probably just use a grep subprocess
