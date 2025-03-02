@@ -53,9 +53,10 @@ def main(username, class_code, lab_name, file_name):
         exit()
     config_obj = prepare_config_obj()
     # Stage 2 - Prepare Compilation
-    lab_window_file_status = verify_lab_window(config_obj, lab_name)
-    if not lab_window_file_status:
-        print(f"{Fore.RED}*** Lab number missing or invalid. Please check again. ***{Style.RESET_ALL}")
+    lab_name_status = verify_lab_name(config_obj, lab_name)
+    if not lab_name_status:
+        print(f"{Fore.RED}*** Error: Lab number missing or invalid. Please check again. ***{Style.RESET_ALL}")
+        exit()
     lab_file_status = verify_lab_file_existence(config_obj, file_name)
     if not lab_file_status:
         print(f"{Fore.RED}*** Error: file {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.RED} does not exist in the current directory. ***{Style.RESET_ALL}")
@@ -64,8 +65,10 @@ def main(username, class_code, lab_name, file_name):
     if not lab_header_inclusion:
         print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} does not include the lab header file. ***{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}*** There's a good chance your program won't compile! ***{Style.RESET_ALL}")
+    lab_window_status = verify_lab_window(config_obj, lab_name)
+    if not lab_window_status:
+        print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} is outside of the submission window. ***{Style.RESET_ALL}")
     grader = determine_section(config_obj, username)
-
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
     # Stage 3 - Compile and Run
     run_result = compile_and_run_submission(config_obj, student_temp_dir)
@@ -88,7 +91,7 @@ def verify_lab_file_existence(config_obj, file_name):
     if os.path.exists(file_name):
         return True
     return False
-def retrieve_lab_window(config_obj, lab_nsame):
+def verify_lab_window(config_obj, lab_name):
     with open(config_obj.lab_window_path, 'r', newline="") as window_list:
         next(window_list)
         fieldnames = ["lab_name", "start_date", "end_date"]
@@ -101,12 +104,9 @@ def retrieve_lab_window(config_obj, lab_nsame):
                 if start_date < today < end_date:
                     return True
                 else:
-                    print("Submission outside of window")
                     return False
-        print("Unable to find lab name")
-
     return False
-def verify_lab_window(config_obj, lab_name):
+def verify_lab_name(config_obj, lab_name):
     with open(config_obj.lab_window_path, 'r', newline="") as window_list:
         next(window_list)
         fieldnames = ["lab_name", "start_date", "end_date"]
@@ -170,6 +170,7 @@ def compile_and_run_submission(config_obj, temp_dir):
     return True
 def clean_up_test_directory(config_obj, temp_dir):
     shutil.rmtree(temp_dir)
+
 
 
 # Creates a new toml file.
