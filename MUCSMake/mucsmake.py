@@ -1,5 +1,8 @@
-# MUCSMake 
+# MUCSMakePy 
 # Utility to collect student lab submissions
+# Written by Matt Marlow
+# Based on Daphne Zou's original mucsmake script
+# Spring 2025
 
 import getpass
 import sys
@@ -62,10 +65,13 @@ def main(username, class_code, lab_name, file_name):
         print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} does not include the lab header file. ***{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}*** There's a good chance your program won't compile! ***{Style.RESET_ALL}")
     grader = determine_section(config_obj, username)
+
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
     # Stage 3 - Compile and Run
     run_result = compile_and_run_submission(config_obj, student_temp_dir)
     clean_up_test_directory(config_obj, student_temp_dir)
+    # Stage 4 - Place Submission
+
 
 
 
