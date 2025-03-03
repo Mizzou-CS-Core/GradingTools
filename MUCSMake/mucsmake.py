@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 from datetime import datetime
 
 import tomlkit
@@ -28,7 +29,8 @@ from subprocess import DEVNULL, PIPE, run, STDOUT, Popen, TimeoutExpired, Called
 
 
 class Config:
-    def __init__(self,class_code, run_valgrind, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory):
+    def __init__(self,class_code, run_valgrind, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory,
+    valid_dir, invalid_dir):
         self.class_code = class_code
         self.run_valgrind = run_valgrind
         self.base_path = base_path
@@ -36,6 +38,11 @@ class Config:
         self.lab_submission_directory = base_path + class_code + lab_submission_directory
         self.roster_directory = base_path + class_code + roster_directory
         self.test_files_directory = base_path + class_code + test_files_directory
+        self.valid_dir = valid_dir
+        self.invalid_dir = invalid_dir
+
+
+
     def get_base_path_with_class_code(self):
         return self.base_path + self.class_code
 
@@ -80,9 +87,44 @@ def main(username, class_code, lab_name, file_name):
     run_result = compile_and_run_submission(config_obj, student_temp_dir)
     clean_up_test_directory(config_obj, student_temp_dir)
     # Stage 4 - Place Submission
+    place_submission(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username)
 
 
 
+def place_submission(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username):
+    submission_path = config_obj.lab_submission_directory + "/" + lab_name + "/" + grader
+    directory_name = username + "_" + str(datetime.today()).replace(" ", "_")
+    valid_path = submission_path + "/" + config_obj.valid_dir
+    invalid_path = submission_path + "/" + config_obj.invalid_dir
+
+    # is_valid = lab_window_status and run_result
+    is_valid = run_result
+    if not os.path.exists(valid_path):
+        os.makedirs(valid_path)
+    if not os.path.exists(invalid_path):
+        os.makedir(invalid_path)
+
+
+
+
+    if (is_valid):
+        valid_student_dir = valid_path + "/" + directory_name
+        os.makedirs(valid_student_dir)
+        # sets directory to setgroupid, read/execute for users, and nothing else for non groups
+        os.chmod(valid_student_dir, 0o2770)
+        shutil.copy(file_name, valid_student_dir)
+        os.chmod(valid_student_dir + "/" + file_name, stat.S_IRUSR | stat.S_IRGRP | stat.S_IXGRP)
+        symlink_dir = submission_path + "/" + username
+        # if the link existed previously, let's undo it
+        if os.path.islink(symlink_dir):
+            os.unlink(symlink_dir)
+        os.symlink(valid_student_dir, symlink_dir, target_is_directory = True)
+    else:
+        invalid_student_dir = invalid_path + "/" + directory_name
+        os.makedirs(invalid_student_dir)
+        shutil.copy(file_name, invalid_student_dir)
+    
+    
 
 
 # Uses a Regex string to detect if the lab header has been included in the file
@@ -124,7 +166,6 @@ def verify_lab_name(config_obj, lab_name):
 def verify_student_enrollment(config_obj):
     path = os.environ.get("PATH", "")
     directories = path.split(":")
-    print(directories)
     target = config_obj.get_base_path_with_class_code() + "/bin"
     if target in directories:
         return True
@@ -205,6 +246,12 @@ def prepare_toml_doc():
     paths.add("lab_submission_directory", "/submissions")
     paths.add("test_files_directory", "/test_files")
     paths.add("roster_directory", "/csv_rosters")
+    paths.add(comment("All valid submissions go here within your grader's submission folder."))
+    paths.add(comment("If it doesn't exist, it will be created."))
+    paths.add("valid_dir", ".valid")
+    paths.add(comment("All invalid submissions go here within your grader's submission folder."))
+    paths.add(comment("If it doesn't exist, it will be created."))
+    paths.add("invalid_dir", ".invalid")
     doc['general'] = general
     doc['paths'] = paths
 
@@ -226,7 +273,7 @@ def prepare_config_obj():
 
     return Config(class_code = general.get('class_code'), run_valgrind = general.get('run_valgrind'), 
     base_path = paths.get('base_path'), lab_submission_directory = paths.get('lab_submission_directory'), test_files_directory = paths.get('test_files_directory'),
-    roster_directory = paths.get('roster_directory'), lab_window_path = paths.get('lab_window_path'))
+    roster_directory = paths.get('roster_directory'), lab_window_path = paths.get('lab_window_path'), valid_dir = paths.get('valid_dir'), invalid_dir = paths.get('invalid_dir'))
 
 
 if __name__ == "__main__":
