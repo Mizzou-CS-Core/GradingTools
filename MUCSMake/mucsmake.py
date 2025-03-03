@@ -88,6 +88,8 @@ def main(username, class_code, lab_name, file_name):
     clean_up_test_directory(config_obj, student_temp_dir)
     # Stage 4 - Place Submission
     place_submission(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username)
+    # Stage 5 - Display Results
+    display_results(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username)
 
 
 
@@ -97,8 +99,7 @@ def place_submission(config_obj, lab_window_status, run_result, grader, lab_name
     valid_path = submission_path + "/" + config_obj.valid_dir
     invalid_path = submission_path + "/" + config_obj.invalid_dir
 
-    # is_valid = lab_window_status and run_result
-    is_valid = run_result
+    is_valid = lab_window_status and run_result
     if not os.path.exists(valid_path):
         os.makedirs(valid_path)
     if not os.path.exists(invalid_path):
@@ -125,7 +126,34 @@ def place_submission(config_obj, lab_window_status, run_result, grader, lab_name
         shutil.copy(file_name, invalid_student_dir)
     
     
+def display_results(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username):
+    print(f"\n")
+    if (lab_window_status == False):
+        print(f"{Fore.RED}========================================={Style.RESET_ALL}")
+        print(f"{Fore.RED}*******OUTSIDE OF SUBMISSION WINDOW******{Style.RESET_ALL}")
+        print(f"{Fore.RED}========================================={Style.RESET_ALL}")
+    elif (run_result == False): 
+        print(f"{Fore.RED}========================================={Style.RESET_ALL}")
+        print(f"{Fore.RED}************FAILED TO COMPILE************{Style.RESET_ALL}")
+        print(f"{Fore.RED}========================================={Style.RESET_ALL}")
+    else:
+        print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
+        print(f"{Fore.GREEN}**********SUBMISSION SUCCESSFUL**********{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
+    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
+    print(f"Course:     {config_obj.class_code}")
+    print(f"Section/TA: {grader}")
+    print(f"Assignment: {lab_name}")
+    print(f"User:       {username}")
+    print(f"Submission: {file_name}")
+    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
+    print(f"{Fore.BLUE}***********SUBMISSION COMPLETE**********{Style.RESET_ALL}")
 
+
+
+    
+
+    
 
 # Uses a Regex string to detect if the lab header has been included in the file
 def verify_lab_header_inclusion(config_obj, file_name, lab_name):
