@@ -12,6 +12,10 @@ import datetime
 import tomlkit
 from tomlkit import document, table, comment, dumps, loads
 
+# https://pypi.org/project/colorama/
+from colorama import init as colorama_init
+from colorama import Fore, Back
+from colorama import Style
 
 from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
 from csv import DictReader, DictWriter
