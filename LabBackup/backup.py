@@ -17,7 +17,7 @@ from colorama import init as colorama_init
 from colorama import Fore, Back
 from colorama import Style
 
-from subprocess import PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
+from subprocess import PIPE, run, STDOUT, DEVNULL, Popen, TimeoutExpired, CalledProcessError
 from csv import DictReader, DictWriter
 from pathlib import Path
 
@@ -267,7 +267,7 @@ def perform_backup(context, lab_path):
                     if ".c" in filename and config_obj.compile_submissions:
                         print(f"{Fore.BLUE}Compiling student {name}'s lab{Style.RESET_ALL}")
                         if config_obj.use_makefile:
-                            result = run(["make"], cwd = local_name_dir)
+                            result = run(["make"], stdout=DEVNULL, cwd = local_name_dir)
                         else:
                             compilable_lab = local_name_dir + "/" + filename
                             result = run(["gcc", "-Wall", "-Werror", "-o", local_name_dir + "/a.out", compilable_lab])
