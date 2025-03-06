@@ -82,9 +82,9 @@ def make_api_call(url, token, headers=None):
         if (response.status_code == 200):
             return response
         else:
-            print(f"(ERROR) - HTTP Error {response.status_code}")
+            print(f"{Fore.RED}(ERROR) - HTTP Error {response.status_code}{Style.RESET_ALL}")
     except requests.exceptions.RequestException as e:
-        print('(ERROR): ', e)
+        print(f'{Fore.RED}(ERROR): {e}{Style.RESET_ALL}')
     return None
 # Get individual submission of assignment from cache and determine if the score matches the criteria
 def get_assignment_score(config_obj, user_id):
@@ -115,9 +115,9 @@ def generate_grader_roster(context):
             stored_date_obj = datetime.datetime.strptime(stored_date_str, "%Y-%m-%d %H:%M:%S.%f")
             invalidation_date = datetime.datetime.now() - datetime.timedelta(days=config_obj.roster_invalidation_days)
             if (stored_date_obj > invalidation_date):
-                print("Roster data is recent enough to be used")
+                print(f"{Fore.BLUE}Roster data is recent enough to be used{Style.RESET_ALL}")
                 return
-    print("Preparing roster data")
+    print(f"{Fore.BLUE}Preparing roster data{Style.RESET_ALL}")
     # firstly, get a list of groups
     group_api = config_obj.api_prefix + "courses/" + str(config_obj.course_id) + "/groups"
     groups = make_api_call(group_api, config_obj.api_token)
@@ -128,7 +128,7 @@ def generate_grader_roster(context):
             group_id = key['id'] 
     # if it's still -1, we didn't find it. program will probably crash at some point but we're not going to exit because maybe a cached copy exists?
     if group_id == -1: 
-        print("A group corresponding to " + command_args_obj.grader_name + " was not found in the Canvas course " + str(config_obj.course_id))
+        print(f"{Fore.RED}A group corresponding to {command_args_obj.grader_name} was not found in the Canvas course {str(config_obj.course_id)}{Style.RESET_ALL}")
     # now we can retrieve a list of the users in the grader's group
     group_api = config_obj.api_prefix + "groups/" + str(group_id) + "/users?per_page=100"
     users_in_group = make_api_call(group_api, config_obj.api_token)
@@ -154,8 +154,8 @@ def generate_assignment_list(config_obj, command_args_obj):
         if key['name'] == config_obj.attendance_assignment_name_scheme + command_args_obj.lab_name[3:]:
             assignment_id = key['id']
     if assignment_id == 0:
-        print(f"(ERROR) - Unable to find an assignment matching {attendance_name} from Canvas.")
-        print("(ERROR) - Disabling attendance checking for this execution.")
+        print(f"{Fore.RED}(ERROR) - Unable to find an assignment matching {attendance_name} from Canvas.{Style.RESET_ALL}")
+        print(f"{Fore.RED}(ERROR) - Disabling attendance checking for this execution.{Style.RESET_ALL}")
         config_obj.check_attendance = False
         return
     canvas_assignments_api = config_obj.api_prefix + "courses/" + str(config_obj.course_id) + "/assignments/" + str(assignment_id) + "/submissions?per_page=200"
@@ -174,11 +174,11 @@ def gen_directories(context):
     if not os.path.exists(config_obj.get_complete_local_path()):
         # create main lab dir
         os.makedirs(config_obj.get_complete_local_path())
-        print("Creating main lab dir")
+        print(f"{Fore.BLUE}Creating main lab dir{Style.RESET_ALL}")
     if os.path.exists(config_obj.get_complete_cache_path()):
-        print("A cache folder for the program already exists. Clearing it and rebuilding")
+        print(f"{Fore.BLUE}A cache folder for the program already exists. Clearing it and rebuilding{Style.RESET_ALL}")
         shutil.rmtree(config_obj.get_complete_cache_path())
-    print("Generating a cache folder")
+    print(f"{Fore.BLUE}Generating a cache folder{Style.RESET_ALL}")
     os.makedirs(config_obj.get_complete_cache_path())
         
     generate_grader_roster(context)
@@ -188,11 +188,11 @@ def gen_directories(context):
     param_lab_path = config_obj.get_complete_local_path() + "/" + param_lab_dir
     # double check if the backup folder for the lab exists and if it does, just clear it out and regenerate
     # could also ask if the user is cool with this
-    print("Checking path ", param_lab_path)
+    print(f"{Fore.BLUE}Checking path {param_lab_path}{Style.RESET_ALL}")
     if os.path.exists(param_lab_path) and config_obj.clear_existing_backups:
-        print("A backup folder for", command_args_obj.lab_name, " already exists. Clearing it and rebuilding")
+        print(f"{Fore.BLUE}A backup folder for {command_args_obj.lab_name} already exists. Clearing it and rebuilding{Style.RESET_ALL}")
         shutil.rmtree(param_lab_path)
-    print("Creating a backup folder for", command_args_obj.lab_name)
+    print(f"{Fore.BLUE}Creating a backup folder for {command_args_obj.lab_name}{Style.RESET_ALL}")
     os.makedirs(param_lab_path)
     # if command_args_obj.make_submission:
     #     p = Popen(['cs1050start', command_args_obj.lab_name], cwd=config_obj.local_storage_dir )
@@ -211,22 +211,10 @@ def perform_backup(context, lab_path):
     # if we're using headers, then we need to cache the necessary files
     if config_obj.use_header_files:
         # /.testfiles generally has what we're looking for 
-        print("Copying test files into cache")
+        print(f"{Fore.BLUE}Copying test files into cache{Style.RESET_ALL}")
         lab_files_path = config_obj.get_complete_hellbender_path() + "/.testfiles/" + command_args_obj.lab_name + "_temp"
         for filename in os.listdir(lab_files_path):
             shutil.copy(lab_files_path + "/" + filename, config_obj.get_complete_cache_path())
-
-
-
-    # if attendance is true, then we need to go find the assignment we need
-    # if command_args_obj.check_attendance == True:
-    #     with open(cache_path + "/assignment_list.json", 'r') as file:
-    #         assignment_json = json.load(file)
-    #         assignment_name = "Attendance: Lab " + lab_name[3:]
-    #         for key in assignment_json:
-    #             if key['name'] == assignment_name:
-    #         if attendance_assignment_id == None:
-    #             print("Failed to find attendance assignment for " + lab_name + ". Blocking further attendance checking.")
 
     with open(grader_csv, "r", newline="") as pawprints_list:
         next(pawprints_list)
@@ -244,8 +232,8 @@ def perform_backup(context, lab_path):
              
             if config_obj.check_attendance  == True:
                 if not get_assignment_score(config_obj, canvas_id):
-                    print(f"(WARNING): {name} was marked absent during the lab session and therefore does not have a valid submission.")
-                    print("(WARNING): Skipping compilation!")
+                    print(f"{Fore.YELLOW}(WARNING): {name} was marked absent during the lab session and therefore does not have a valid submission.{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}(WARNING): Skipping compilation!{Style.RESET_ALL}")
                     continue
             pawprint_dir = submissions_dir + "/" + pawprint
             if (config_obj.clear_existing_backups == False):
@@ -258,7 +246,7 @@ def perform_backup(context, lab_path):
                     shutil.rmtree(local_name_dir)
                 
             if not os.path.exists(pawprint_dir):
-                print("(WARNING) - Student " + name + " does not have a valid submission. ")
+                print(f"{Fore.YELLOW}(WARNING) - Student {name} does not have a valid submission.{Style.RESET_ALL}")
                 continue            
             # if there is a submission, copy it over to the local directory
             else:
@@ -272,12 +260,12 @@ def perform_backup(context, lab_path):
                            shutil.copy(config_obj.get_complete_cache_path() + "/" + x, local_name_dir)
                         
                         except PermissionError:
-                            print(f"(ERROR) - Unable to copy cached files into student {name}'s directory.")
-                            print("(ERROR) - This can happen if a student turned in a file that has an identical name (including the extension)")
-                            continues
+                            print(f"{Fore.RED}(ERROR) - Unable to copy cached files into student {name}'s directory.{Style.RESET_ALL}")
+                            print(f"{Fore.RED}(ERROR) - This can happen if a student turned in a file that has an identical name (including the extension){Style.RESET_ALL}")
+                            continue
                     # if it's a c file, let's try to compile it and write the output to a file
                     if ".c" in filename and config_obj.compile_submissions:
-                        print("Compiling student " + name + "'s lab")
+                        print(f"{Fore.BLUE}Compiling student {name}'s lab{Style.RESET_ALL}")
                         if config_obj.use_makefile:
                             result = run(["make"], cwd = local_name_dir)
                         else:
@@ -286,11 +274,11 @@ def perform_backup(context, lab_path):
                         if config_obj.execute_submissions:
                             result = None
                             try:
-                                print("Executing student " + name + "'s lab")
+                                print(f"{Fore.BLUE}Executing student {name}'s lab{Style.RESET_ALL}")
                                 executable_path = Path(local_name_dir) / "a.out"
                                 output_log_path = Path(local_name_dir) / "output.log"
                                 
-                                result = run([executable_path], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=config_obj.input_string or None)
+                                result = run(["stdbuf", "-oL", executable_path], timeout=config_obj.execution_timeout, stdout=PIPE, stderr=PIPE, universal_newlines=True, input=config_obj.input_string or None)
                                 with output_log_path.open('w') as log:
                                     log.write(result.stdout)
                                 if config_obj.generate_valgrind_output:
@@ -299,9 +287,9 @@ def perform_backup(context, lab_path):
                                     with valgrind_log_path.open('w') as vg_log:
                                         vg_log.write(result.stderr)
                             except TimeoutExpired:
-                                print("(WARNING) - Student " + name + "'s lab took too long.")
+                                print(f"{Fore.YELLOW}(WARNING) - Student {name}'s lab took too long.{Style.RESET_ALL}")
                             except FileNotFoundError:
-                                print(f"(ERROR) - Student {name}'s lab didn't produce an executable. Double check that their submission is correct.")    
+                                print(f"{Fore.YELLOW}(ERROR) - Student {name}'s lab didn't produce an executable. Double check that their submission is correct.{Style.RESET_ALL}")    
 
 def prepare_toml_doc():
     """
