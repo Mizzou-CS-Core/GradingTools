@@ -55,14 +55,13 @@ date_format = "%Y-%m-%d_%H:%M:%S"
 
 def main(username, class_code, lab_name, file_name):
     # Stage 1 - Prepare Configuration
-    colorama_init()
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} does not exist, creating a default one")
         prepare_toml_doc()
         print("You'll want to edit this with your correct information. Cancelling further program execution!")
         exit()
     config_obj = prepare_config_obj()
-    # Stage 2 - Prepare Compilation
+    # Stage 2 - Verify Parameters and Submission
     lab_name_status = verify_lab_name(config_obj, lab_name)
     if not lab_name_status:
         print(f"{Fore.RED}*** Error: Lab number missing or invalid. Please check again. ***{Style.RESET_ALL}")
@@ -307,9 +306,10 @@ def prepare_config_obj():
 if __name__ == "__main__":
     # Stage 0 - Collect Command Args
     username = getpass.getuser()
+    colorama_init()
     if (len(sys.argv) < 4):
-        print("Too few arguments provided!")
-        print("Usage: mucsmake {class_code} {lab_name} {file_to_submit} ")
+        print(f"{Fore.RED} *** Too few arguments provided! *** {Style.RESET_ALL}")
+        print(f"{Fore.RED}Usage: mucsmake{Fore.BLUE} {{class_code}} {{lab_name}} {{file_to_submit}} {Style.RESET_ALL}")
         exit()
     class_code = sys.argv[1]
     lab_name = sys.argv[2]
