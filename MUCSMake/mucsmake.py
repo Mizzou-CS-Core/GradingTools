@@ -150,8 +150,13 @@ def display_results(config_obj, lab_window_status, run_result, grader, lab_name,
 
 
 
-    
-
+# If a function throws an exception due to a file issue, we need to abort the submission completely and intervene  
+def handle_exception(ex):
+    print(f"{Back.RED}*** CRITICAL ERROR *** {Style.RESET_ALL}")
+    print(f"{Back.RED}{ex} {Style.RESET_ALL}")
+    print(f"{Back.RED}*** The configuration file is likely misconfigured. *** {Style.RESET_ALL}")
+    print(f"{Back.RED}*** If you see this message during lab, contact your TA immediately! ***{Style.RESET_ALL}")
+    exit()
     
 
 # Uses a Regex string to detect if the lab header has been included in the file
@@ -182,14 +187,21 @@ def verify_lab_window(config_obj, lab_name):
                     return False
     return False
 def verify_lab_name(config_obj, lab_name):
-    with open(config_obj.lab_window_path, 'r', newline="") as window_list:
-        next(window_list)
-        fieldnames = ["lab_name", "start_date", "end_date"]
-        csvreader = DictReader(window_list, fieldnames=fieldnames)
-        for row in csvreader:
-            if row['lab_name'] == lab_name:
-                return True
-    return False
+    try:
+        with open(config_obj.lab_window_path, 'r', newline="") as window_list:
+            next(window_list)
+            fieldnames = ["lab_name", "start_date", "end_date"]
+            csvreader = DictReader(window_list, fieldnames=fieldnames)
+            for row in csvreader:
+                if row['lab_name'] == lab_name:
+                    return True
+            return False
+    # handle misconfiguration of the config file
+    # if this throws, the class code is probably wrong/not set
+    except Exception as ex:
+        handle_exception(ex)
+    
+    
 def verify_student_enrollment(config_obj):
     path = os.environ.get("PATH", "")
     directories = path.split(":")
