@@ -151,8 +151,8 @@ def display_results(config_obj, lab_window_status, run_result, grader, lab_name,
 
 
 # If a function throws an exception due to a file issue, we need to abort the submission completely and intervene  
-def handle_exception(ex):
-    print(f"{Back.RED}*** CRITICAL ERROR *** {Style.RESET_ALL}")
+def handle_exception(ex, calling_function: str):
+    print(f"{Back.RED}*** CRITICAL ERROR IN {calling_function} *** {Style.RESET_ALL}")
     print(f"{Back.RED}{ex} {Style.RESET_ALL}")
     print(f"{Back.RED}*** The configuration file is likely misconfigured. *** {Style.RESET_ALL}")
     print(f"{Back.RED}*** If you see this message during lab, contact your TA immediately! ***{Style.RESET_ALL}")
@@ -199,7 +199,7 @@ def verify_lab_name(config_obj, lab_name):
     # handle misconfiguration of the config file
     # if this throws, the class code is probably wrong/not set
     except Exception as ex:
-        handle_exception(ex)
+        handle_exception(ex, "verify_lab_name")
     
     
 def verify_student_enrollment(config_obj):
@@ -212,8 +212,6 @@ def verify_student_enrollment(config_obj):
 
 
 def determine_section(config_obj, username):
-    # to-do: can we parallelize this search?
-    # probably just use a grep subprocess
     for roster_filename in os.listdir(config_obj.roster_directory):
         with open(config_obj.roster_directory + "/" + roster_filename, 'r') as csv_file:
             next(csv_file)
