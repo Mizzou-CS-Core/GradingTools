@@ -263,7 +263,7 @@ def prepare_toml_doc():
     doc = document()
 
     general = table()
-    general.add("class_code", "2050")
+    general.add("class_code", "")
     general.add(comment("Checks for a C header file corresponding to the lab name in the submission."))
     general.add("check_lab_header", True)
     general.add("run_valgrind", True)
@@ -306,8 +306,11 @@ def prepare_config_obj():
 
 if __name__ == "__main__":
     # Stage 0 - Collect Command Args
-    # username = getpass.getuser()
-    username = 'adnnk2'
+    username = getpass.getuser()
+    if (len(sys.argv) < 4):
+        print("Too few arguments provided!")
+        print("Usage: mucsmake {class_code} {lab_name} {file_to_submit} ")
+        exit()
     class_code = sys.argv[1]
     lab_name = sys.argv[2]
     file_name = sys.argv[3]
