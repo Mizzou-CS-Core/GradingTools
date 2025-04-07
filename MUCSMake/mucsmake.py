@@ -126,6 +126,15 @@ def place_submission(config_obj, lab_window_status, run_result, grader, lab_name
     
     
 def display_results(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username):
+    
+    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
+    print(f"Course:     {config_obj.class_code}")
+    print(f"Section/TA: {grader}")
+    print(f"Assignment: {lab_name}")
+    print(f"User:       {username}")
+    print(f"Submission: {file_name}")
+    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
+    print(f"{Fore.BLUE}***********SUBMISSION COMPLETE**********{Style.RESET_ALL}")
     print(f"\n")
     if (lab_window_status == False):
         print(f"{Fore.RED}========================================={Style.RESET_ALL}")
@@ -139,14 +148,6 @@ def display_results(config_obj, lab_window_status, run_result, grader, lab_name,
         print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
         print(f"{Fore.GREEN}**********SUBMISSION SUCCESSFUL**********{Style.RESET_ALL}")
         print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
-    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
-    print(f"Course:     {config_obj.class_code}")
-    print(f"Section/TA: {grader}")
-    print(f"Assignment: {lab_name}")
-    print(f"User:       {username}")
-    print(f"Submission: {file_name}")
-    print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
-    print(f"{Fore.BLUE}***********SUBMISSION COMPLETE**********{Style.RESET_ALL}")
 
 
 
