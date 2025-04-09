@@ -6,7 +6,6 @@
 
 import getpass
 import sys
-import toml
 import os 
 import re
 import shutil
@@ -22,15 +21,16 @@ from colorama import Fore, Back
 from colorama import Style
 
 
-from tomlkit import document, table, comment, dumps, loads
-from csv import DictReader, DictWriter
-import subprocess
-from subprocess import DEVNULL, PIPE, run, STDOUT, Popen, TimeoutExpired, CalledProcessError
+from tomlkit import document, table, comment, dumps
+from csv import DictReader
+from subprocess import DEVNULL, PIPE, run
 
 
 class Config:
-    def __init__(self,class_code, run_valgrind, base_path, lab_window_path, lab_submission_directory, test_files_directory, roster_directory,
-    valid_dir, invalid_dir):
+    def __init__(self,class_code: str, run_valgrind: str, base_path: str, 
+    lab_window_path: str, lab_submission_directory: str, 
+    test_files_directory: str, roster_directory: str,
+    valid_dir: str, invalid_dir: str):
         self.class_code = class_code
         self.run_valgrind = run_valgrind
         self.base_path = base_path
@@ -53,24 +53,24 @@ CONFIG_FILE = "config.toml"
 date_format = "%Y-%m-%d_%H:%M:%S"
 
 
-def main(username, class_code, lab_name, file_name):
+def main(username: str, class_code: str, lab_name: str, file_name: str):
     # Stage 1 - Prepare Configuration
-    if not os.path.exists(CONFIG_FILE):
+    if not os.path.exists(path=CONFIG_FILE):
         print(f"{CONFIG_FILE} does not exist, creating a default one")
         prepare_toml_doc()
         print("You'll want to edit this with your correct information. Cancelling further program execution!")
         exit()
-    config_obj = prepare_config_obj()
+    config_obj:Config= prepare_config_obj()
     # Stage 2 - Verify Parameters and Submission
     lab_name_status = verify_lab_name(config_obj, lab_name)
     if not lab_name_status:
         print(f"{Fore.RED}*** Error: Lab number missing or invalid. Please check again. ***{Style.RESET_ALL}")
         exit()
-    lab_file_status = verify_lab_file_existence(config_obj, file_name)
+    lab_file_status = verify_lab_file_existence(file_name)
     if not lab_file_status:
         print(f"{Fore.RED}*** Error: file {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.RED} does not exist in the current directory. ***{Style.RESET_ALL}")
         exit()
-    lab_header_inclusion = verify_lab_header_inclusion(config_obj, file_name, lab_name)
+    lab_header_inclusion = verify_lab_header_inclusion(file_name, lab_name)
     if not lab_header_inclusion:
         print(f"{Fore.YELLOW}*** Warning: your submission {Style.RESET_ALL}{Fore.BLUE}{file_name}{Style.RESET_ALL}{Fore.YELLOW} does not include the lab header file. ***{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}*** There's a good chance your program won't compile! ***{Style.RESET_ALL}")
@@ -92,7 +92,7 @@ def main(username, class_code, lab_name, file_name):
 
 
 
-def place_submission(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username):
+def place_submission(config_obj: Config, lab_window_status: bool, run_result: bool, grader: str, lab_name: str, file_name: str, username: str):
     submission_path = config_obj.lab_submission_directory + "/" + lab_name + "/" + grader
     directory_name = username + "_" + str(datetime.today()).replace(" ", "_")
     valid_path = submission_path + "/" + config_obj.valid_dir
@@ -125,7 +125,7 @@ def place_submission(config_obj, lab_window_status, run_result, grader, lab_name
         shutil.copy(file_name, invalid_student_dir)
     
     
-def display_results(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username):
+def display_results(config_obj: Config, lab_window_status: bool, run_result: bool, grader: str, lab_name: str, file_name: str, username: str):
     
     print(f"{Fore.BLUE}========================================={Style.RESET_ALL}")
     print(f"Course:     {config_obj.class_code}")
@@ -152,7 +152,7 @@ def display_results(config_obj, lab_window_status, run_result, grader, lab_name,
 
 
 # If a function throws an exception due to a file issue, we need to abort the submission completely and intervene  
-def handle_exception(ex, calling_function: str):
+def handle_exception(ex: Exception, calling_function: str):
     print(f"{Back.RED}*** CRITICAL ERROR IN {calling_function} *** {Style.RESET_ALL}")
     print(f"{Back.RED}{ex} {Style.RESET_ALL}")
     print(f"{Back.RED}*** The configuration file is likely misconfigured. *** {Style.RESET_ALL}")
@@ -161,20 +161,20 @@ def handle_exception(ex, calling_function: str):
     
 
 # Uses a Regex string to detect if the lab header has been included in the file
-def verify_lab_header_inclusion(config_obj, file_name, lab_name):
-    search_pattern = f"^(#include)\s*(\"{lab_name}.h\")"
+def verify_lab_header_inclusion(file_name: str, lab_name: str) -> bool:
+    search_pattern = rf"^(#include)\s*(\"{lab_name}.h\")"
     with open(file_name, 'r') as c_file:
         for line in c_file:
             if re.search(search_pattern, line):
                 return True
     return False
-def verify_lab_file_existence(config_obj, file_name):
+def verify_lab_file_existence(file_name: str) -> bool:
     if os.path.exists(file_name):
         return True
     return False
-def verify_lab_window(config_obj, lab_name):
+def verify_lab_window(config_obj: Config, lab_name: str) -> bool:
     with open(config_obj.lab_window_path, 'r', newline="") as window_list:
-        next(window_list)
+        _ = next(window_list)
         fieldnames = ["lab_name", "start_date", "end_date"]
         csvreader = DictReader(window_list, fieldnames=fieldnames)
         for row in csvreader:
@@ -187,10 +187,10 @@ def verify_lab_window(config_obj, lab_name):
                 else:
                     return False
     return False
-def verify_lab_name(config_obj, lab_name):
+def verify_lab_name(config_obj: Config, lab_name: str) -> bool | None:
     try:
         with open(config_obj.lab_window_path, 'r', newline="") as window_list:
-            next(window_list)
+            _ = next(window_list)
             fieldnames = ["lab_name", "start_date", "end_date"]
             csvreader = DictReader(window_list, fieldnames=fieldnames)
             for row in csvreader:
@@ -203,7 +203,7 @@ def verify_lab_name(config_obj, lab_name):
         handle_exception(ex, "verify_lab_name")
     
     
-def verify_student_enrollment(config_obj):
+def verify_student_enrollment(config_obj: Config):
     path = os.environ.get("PATH", "")
     directories = path.split(":")
     target = config_obj.get_base_path_with_class_code() + "/bin"
@@ -212,17 +212,17 @@ def verify_student_enrollment(config_obj):
     return False
 
 
-def determine_section(config_obj, username):
+def determine_section(config_obj: Config, username: str) -> str | None:
     for roster_filename in os.listdir(config_obj.roster_directory):
         with open(config_obj.roster_directory + "/" + roster_filename, 'r') as csv_file:
-            next(csv_file)
+            _ = next(csv_file)
             fieldnames = ['pawprint', 'canvas_id', 'name', 'date']
             csv_roster = DictReader(csv_file, fieldnames=fieldnames)
             for row in csv_roster:
                 if username == row['pawprint']:
                     return roster_filename.replace(".csv", '')
 
-def prepare_test_directory(config_obj, file_name, lab_name, username):
+def prepare_test_directory(config_obj: Config, file_name: str, lab_name: str, username: str) -> str:
     lab_files_dir = config_obj.test_files_directory + "/" + lab_name + "_temp"
     student_temp_files_dir = lab_files_dir + "/" + lab_name + "_" + username + "_temp"
     os.makedirs(student_temp_files_dir)
@@ -232,7 +232,7 @@ def prepare_test_directory(config_obj, file_name, lab_name, username):
         shutil.copy(entry.path, student_temp_files_dir)
     shutil.copy(file_name, student_temp_files_dir)
     return student_temp_files_dir
-def compile_and_run_submission(config_obj, temp_dir):
+def compile_and_run_submission(config_obj: Config, temp_dir: str) -> bool:
     is_make = False
     for entry in os.scandir(temp_dir):
         if (entry.name == "Makefile"):
@@ -258,12 +258,12 @@ def compile_and_run_submission(config_obj, temp_dir):
             print(f"{Fore.RED}Segmentation fault detected!{Style.RESET_ALL}")
     if (config_obj.run_valgrind):
         stderr = run(["valgrind", executable_path], stdout=PIPE, stderr=PIPE, universal_newlines=True).stderr
-        if re.search("[1-9]\d*\s+errors", stderr):
+        if re.search(r"[1-9]\d*\s+errors", stderr):
             print(f"{Fore.RED}Valgrind: There were errors in your program!{Style.RESET_ALL}")
         if not re.search("(All heap blocks were freed -- no leaks are possible)", stderr):
             print(f"{Fore.RED}Valgrind: Memory leak detected!{Style.RESET_ALL}")
     return True
-def clean_up_test_directory(config_obj, temp_dir):
+def clean_up_test_directory(temp_dir: str):
     shutil.rmtree(temp_dir)
 
 
@@ -273,29 +273,29 @@ def prepare_toml_doc():
     doc = document()
 
     general = table()
-    general.add("class_code", "")
-    general.add(comment("Checks for a C header file corresponding to the lab name in the submission."))
-    general.add("check_lab_header", True)
-    general.add("run_valgrind", True)
+    _ = general.add("class_code", "")
+    _ = general.add(comment("Checks for a C header file corresponding to the lab name in the submission."))
+    _ = general.add("check_lab_header", True)
+    _ = general.add("run_valgrind", True)
     
     paths = table()
-    paths.add("base_path", "/cluster/pixstor/class/")
-    paths.add("lab_window_path", "")
-    paths.add("lab_submission_directory", "/submissions")
-    paths.add("test_files_directory", "/test_files")
-    paths.add("roster_directory", "/csv_rosters")
-    paths.add(comment("All valid submissions go here within your grader's submission folder."))
-    paths.add(comment("If it doesn't exist, it will be created."))
-    paths.add("valid_dir", ".valid")
-    paths.add(comment("All invalid submissions go here within your grader's submission folder."))
-    paths.add(comment("If it doesn't exist, it will be created."))
-    paths.add("invalid_dir", ".invalid")
+    _ = paths.add("base_path", "/cluster/pixstor/class/")
+    _ = paths.add("lab_window_path", "")
+    _ = paths.add("lab_submission_directory", "/submissions")
+    _ = paths.add("test_files_directory", "/test_files")
+    _ = paths.add("roster_directory", "/csv_rosters")
+    _ = paths.add(comment("All valid submissions go here within your grader's submission folder."))
+    _ = paths.add(comment("If it doesn't exist, it will be created."))
+    _ = paths.add("valid_dir", ".valid")
+    _ = paths.add(comment("All invalid submissions go here within your grader's submission folder."))
+    _ = paths.add(comment("If it doesn't exist, it will be created."))
+    _ = paths.add("invalid_dir", ".invalid")
     doc['general'] = general
     doc['paths'] = paths
 
 
     with open(CONFIG_FILE, 'w') as f:
-        f.write(dumps(doc))
+        _ = f.write(dumps(doc))
     print(f"Created default {CONFIG_FILE}")
     
 def prepare_config_obj():
@@ -325,6 +325,11 @@ if __name__ == "__main__":
     class_code = sys.argv[1]
     lab_name = sys.argv[2]
     file_name = sys.argv[3]
+    if (os.path.isdir(file_name)):
+        # edge case to catch during preappended absolute paths
+        print(f"{Fore.RED} *** Too few arguments provided! *** {Style.RESET_ALL}")
+        print(f"{Fore.RED}Usage: mucsmake{Fore.BLUE} {{class_code}} {{lab_name}} {{file_to_submit}} {Style.RESET_ALL}")
+        exit()
     main(username, class_code, lab_name, file_name)
 
 
