@@ -81,10 +81,11 @@ def main(username: str, class_code: str, lab_name: str, file_name: str):
     if not enrollment_status:
         print(f"{Fore.RED}*** Error: You are not enrolled in {Style.RESET_ALL}{Fore.BLUE}{config_obj.class_code}{Style.RESET_ALL}{Fore.RED} ")
     grader = determine_section(config_obj, username)
+    
     student_temp_dir = prepare_test_directory(config_obj, file_name, lab_name, username)
     # Stage 3 - Compile and Run
     run_result = compile_and_run_submission(config_obj, student_temp_dir)
-    clean_up_test_directory(config_obj, student_temp_dir)
+    clean_up_test_directory(student_temp_dir)
     # Stage 4 - Place Submission
     place_submission(config_obj, lab_window_status, run_result, grader, lab_name, file_name, username)
     # Stage 5 - Display Results
@@ -151,12 +152,13 @@ def display_results(config_obj: Config, lab_window_status: bool, run_result: boo
 
 
 
-# If a function throws an exception due to a file issue, we need to abort the submission completely and intervene  
-def handle_exception(ex: Exception, calling_function: str):
+# If a function encounters an error beyond user error (config mishap, course-side misconfiguration, etc) we need to stop 
+# 
+def handle_critical_error(message: str, calling_function: str):
     print(f"{Back.RED}*** CRITICAL ERROR IN {calling_function} *** {Style.RESET_ALL}")
-    print(f"{Back.RED}{ex} {Style.RESET_ALL}")
+    print(f"{Back.RED}{message} {Style.RESET_ALL}")
     print(f"{Back.RED}*** The configuration file is likely misconfigured. *** {Style.RESET_ALL}")
-    print(f"{Back.RED}*** If you see this message during lab, contact your TA immediately! ***{Style.RESET_ALL}")
+    print(f"{Back.RED}*** If you see this message during lab, contact your TA or professor immediately! ***{Style.RESET_ALL}")
     exit()
     
 
@@ -200,7 +202,7 @@ def verify_lab_name(config_obj: Config, lab_name: str) -> bool | None:
     # handle misconfiguration of the config file
     # if this throws, the class code is probably wrong/not set
     except Exception as ex:
-        handle_exception(ex, "verify_lab_name")
+        handle_critical_error(str(ex), "verify_lab_name")
     
     
 def verify_student_enrollment(config_obj: Config):
@@ -212,7 +214,7 @@ def verify_student_enrollment(config_obj: Config):
     return False
 
 
-def determine_section(config_obj: Config, username: str) -> str | None:
+def determine_section(config_obj: Config, username: str) -> str:
     for roster_filename in os.listdir(config_obj.roster_directory):
         with open(config_obj.roster_directory + "/" + roster_filename, 'r') as csv_file:
             _ = next(csv_file)
@@ -221,6 +223,10 @@ def determine_section(config_obj: Config, username: str) -> str | None:
             for row in csv_roster:
                 if username == row['pawprint']:
                     return roster_filename.replace(".csv", '')
+    # if we made it out of the loop... panic!
+    # likely a misconfiguration of the grading roster
+    handle_critical_error("No grader found", "determine_section")
+    return ""
 
 def prepare_test_directory(config_obj: Config, file_name: str, lab_name: str, username: str) -> str:
     lab_files_dir = config_obj.test_files_directory + "/" + lab_name + "_temp"
