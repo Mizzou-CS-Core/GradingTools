@@ -102,7 +102,7 @@ def place_submission(config_obj, lab_window_status, run_result, grader, lab_name
     if not os.path.exists(valid_path):
         os.makedirs(valid_path)
     if not os.path.exists(invalid_path):
-        os.makedir(invalid_path)
+        os.makedirs(invalid_path)
 
 
 
