@@ -56,9 +56,9 @@ date_format = "%Y-%m-%d_%H:%M:%S"
 def main(username: str, class_code: str, lab_name: str, file_name: str):
     # Stage 1 - Prepare Configuration
     if not os.path.exists(path=CONFIG_FILE):
-        print(f"{CONFIG_FILE} does not exist, creating a default one")
+        print()
         prepare_toml_doc()
-        print("You'll want to edit this with your correct information. Cancelling further program execution!")
+        handle_critical_error(f"{CONFIG_FILE} does not exist, creating a default one", "main")
         exit()
     config_obj:Config= prepare_config_obj()
     # Stage 2 - Verify Parameters and Submission
