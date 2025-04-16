@@ -96,7 +96,7 @@ def get_assignment_score(config_obj, user_id):
                 if key['score'] == config_obj.attendance_assignment_point_criterion:
                     return True
         return False
-# Generates a roster based on the grader's group on Canvas. s
+# Generates a roster based on the grader's group on Canvas.
 def generate_grader_roster(context):
     config_obj = context.config_obj
     command_args_obj = context.command_args_obj
@@ -164,8 +164,6 @@ def generate_assignment_list(config_obj, command_args_obj):
     with open(config_obj.get_complete_cache_path() + "/attendance_submissions.json", 'w', encoding='utf-8') as file:
         json.dump(response.json(), file, ensure_ascii=False, indent=4)
     
-    
-
 # Preamble function responsible for generating and prepping any necessary directories and files
 def gen_directories(context):
     config_obj = context.config_obj
@@ -214,7 +212,9 @@ def perform_backup(context, lab_path):
         print(f"{Fore.BLUE}Copying test files into cache{Style.RESET_ALL}")
         lab_files_path = config_obj.get_complete_hellbender_path() + "/.testfiles/" + command_args_obj.lab_name + "_temp"
         for filename in os.listdir(lab_files_path):
-            shutil.copy(lab_files_path + "/" + filename, config_obj.get_complete_cache_path())
+            qualified_filename = lab_files_path + "/" + filename
+            if not os.path.isdir(qualified_filename):
+                shutil.copy(qualified_filename, config_obj.get_complete_cache_path())
 
     with open(grader_csv, "r", newline="") as pawprints_list:
         next(pawprints_list)
