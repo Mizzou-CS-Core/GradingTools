@@ -12,7 +12,7 @@ import shutil
 import signal
 import stat
 from datetime import datetime
-
+from pathlib import Path
 import tomlkit
 
 # https://pypi.org/project/colorama/
@@ -114,7 +114,8 @@ def place_submission(config_obj: Config, lab_window_status: bool, run_result: bo
         # sets directory to setgroupid, read/execute for users, and nothing else for non groups
         os.chmod(valid_student_dir, 0o2770)
         shutil.copy(file_name, valid_student_dir)
-        os.chmod(valid_student_dir + "/" + file_name, stat.S_IRUSR | stat.S_IRGRP | stat.S_IXGRP)
+        file_name_specific = Path(file_name).name
+        os.chmod(valid_student_dir + "/" + file_name_specific, stat.S_IRUSR | stat.S_IRGRP | stat.S_IXGRP)
         symlink_dir = submission_path + "/" + username
         # if the link existed previously, let's undo it
         if os.path.islink(symlink_dir):
